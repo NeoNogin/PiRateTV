@@ -13,6 +13,7 @@ from media_manager import MediaManager
 from display_manager import DisplayManager
 from audio_manager import AudioManager
 from state_manager import StateManager
+from menu_manager import MenuManager
 
 # --- Global Application State & Managers ---
 vlc_instance = vlc.Instance("--aout=alsa", "--quiet", "--no-video-title-show", "--no-xlib")
@@ -23,6 +24,7 @@ media_manager = MediaManager(config.MEDIA_ROOT_DIR)
 display_manager = DisplayManager()
 audio_manager = AudioManager()
 state_manager = StateManager(config.STATE_FILE_PATH)
+menu_manager = MenuManager(media_manager)
 
 is_sleeping = False
 is_playing = False
@@ -51,6 +53,7 @@ def unlock_cb(opaque, picture, planes):
 def display_cb(opaque, picture):
     """Called by VLC when a frame is ready to be displayed."""
     if is_sleeping: return
+    if menu_manager.active: return
 
     # Create a PIL Image from the raw buffer data
     # 'RV24' corresponds to RGB
@@ -120,17 +123,21 @@ def update_display():
     if is_sleeping:
         return
 
-    current_pos_s = media_player.get_time() / 1000.0
-    total_duration_s = media_player.get_length() / 1000.0
-    
-    display_manager.show_playback_info(
-        show_info=media_manager.get_current_episode_info(),
-        current_time_str=format_time(current_pos_s),
-        total_time_str=format_time(total_duration_s),
-        volume_percent=audio_manager.get_current_volume(),
-        is_playing=media_player.is_playing(),
-        is_shuffled=media_manager.shuffle_enabled
-    )
+    if menu_manager.active:
+        title, items = menu_manager.get_current_view()
+        display_manager.draw_menu(title, items, menu_manager.cursor)
+    else:
+        current_pos_s = media_player.get_time() / 1000.0
+        total_duration_s = media_player.get_length() / 1000.0
+        
+        display_manager.show_playback_info(
+            show_info=media_manager.get_current_episode_info(),
+            current_time_str=format_time(current_pos_s),
+            total_time_str=format_time(total_duration_s),
+            volume_percent=audio_manager.get_current_volume(),
+            is_playing=media_player.is_playing(),
+            is_shuffled=media_manager.shuffle_enabled
+        )
 
 def format_time(seconds):
     """Formats seconds into a MM:SS string."""
@@ -140,27 +147,65 @@ def format_time(seconds):
 # --- Button Handlers ---
 def handle_next_episode():
     if is_sleeping: wake_up(); return
-    print("Button: Next Episode")
-    stop_playback()
-    media_manager.next_episode()
-    save_current_state()
-    start_playback(media_manager.get_current_episode_path())
+    
+    if menu_manager.active:
+        # Menu Mode: Select / Enter
+        print("Menu: Select")
+        result = menu_manager.select()
+        if result:
+            # Play selection
+            show_idx, season_idx, episode_idx = result
+            print(f"Menu: Playing selection {show_idx}-{season_idx}-{episode_idx}")
+            media_manager.set_current_indices(show_idx, season_idx, episode_idx)
+            menu_manager.exit_menu()
+            stop_playback()
+            start_playback(media_manager.get_current_episode_path())
+            save_current_state()
+        else:
+            # Just navigating deeper
+            update_display()
+    else:
+        # Playback Mode: Next Episode
+        print("Button: Next Episode")
+        stop_playback()
+        media_manager.next_episode()
+        save_current_state()
+        start_playback(media_manager.get_current_episode_path())
 
 def handle_prev_episode():
     if is_sleeping: wake_up(); return
-    print("Button: Previous Episode (Long Press)")
-    stop_playback()
-    media_manager.prev_episode()
-    save_current_state()
-    start_playback(media_manager.get_current_episode_path())
+    
+    if menu_manager.active:
+        # Menu Mode: UP
+        menu_manager.scroll_up()
+        update_display()
+    else:
+        # Playback Mode: Previous Episode
+        print("Button: Previous Episode")
+        stop_playback()
+        media_manager.prev_episode()
+        save_current_state()
+        start_playback(media_manager.get_current_episode_path())
 
 def handle_next_show():
     if is_sleeping: wake_up(); return
-    print("Button: Next Show")
-    stop_playback()
-    media_manager.next_show()
-    save_current_state()
-    start_playback(media_manager.get_current_episode_path())
+    
+    if menu_manager.active:
+        # Menu Mode: Back
+        menu_manager.back()
+        # If we exited menu mode (cancelled), resume playback
+        if not menu_manager.active:
+             if not media_player.is_playing():
+                 print("Menu exited. Resuming playback...")
+                 media_player.play()
+        update_display()
+    else:
+        # Playback Mode: Next Show
+        print("Button: Next Show")
+        stop_playback()
+        media_manager.next_show()
+        save_current_state()
+        start_playback(media_manager.get_current_episode_path())
 
 def handle_fast_forward():
     if is_sleeping: wake_up(); return
@@ -179,17 +224,25 @@ def handle_fast_forward():
 
 def handle_rewind():
     if is_sleeping: wake_up(); return
-    print("Button: Rewind (30s)")
-    if media_player.is_playing():
-        current_time = media_player.get_time()
-        # Rewind 30 seconds (30000 ms)
-        new_time = current_time - 30000
-        
-        if new_time < 0:
-            new_time = 0
-        
-        media_player.set_time(new_time)
-        print(f"Seeked to {new_time/1000.0}s")
+    
+    if menu_manager.active:
+        # In menu, Long Press A could duplicate UP or do nothing.
+        # Let's keep it simple: UP
+        menu_manager.scroll_up()
+        update_display()
+    else:
+        # Playback Mode: Rewind
+        print("Button: Rewind (30s)")
+        if media_player.is_playing():
+            current_time = media_player.get_time()
+            # Rewind 30 seconds (30000 ms)
+            new_time = current_time - 30000
+            
+            if new_time < 0:
+                new_time = 0
+            
+            media_player.set_time(new_time)
+            print(f"Seeked to {new_time/1000.0}s")
 
 def handle_cycle_volume():
     if is_sleeping: wake_up(); return
@@ -200,9 +253,25 @@ def handle_cycle_volume():
 
 def handle_toggle_shuffle():
     if is_sleeping: wake_up(); return
-    new_state = not media_manager.shuffle_enabled
-    media_manager.set_shuffle_mode(new_state)
-    print(f"Button: Toggle Shuffle -> {new_state}")
+    
+    if menu_manager.active:
+        # Menu Mode: Down
+        menu_manager.scroll_down()
+        update_display()
+    else:
+        # Playback Mode: Toggle Shuffle
+        new_state = not media_manager.shuffle_enabled
+        media_manager.set_shuffle_mode(new_state)
+        print(f"Button: Toggle Shuffle -> {new_state}")
+        update_display()
+
+def enter_menu_mode():
+    if is_sleeping: wake_up(); return
+    print("Entering Menu Mode")
+    if media_player.is_playing():
+        print("Pausing playback for menu...")
+        media_player.pause()
+    menu_manager.enter_menu()
     update_display()
 
 def handle_sleep_wake():
@@ -283,10 +352,14 @@ def setup():
         'br_used_as_modifier': False # To track if Y was used as modifier
     }
 
-    # --- Top Left (A): Prev Episode (Short) / Rewind (Long) ---
+    # --- Top Left (A): Prev Episode (Short) / Menu (Long) ---
     def on_tl_held():
         button_states['tl_held'] = True
-        handle_rewind()
+        if menu_manager.active:
+            # If already in menu, long press acts as fast scroll up or just regular up
+            handle_prev_episode() # Maps to UP in menu
+        else:
+            enter_menu_mode() # REPLACES Rewind
         
     def on_tl_released():
         if not button_states['tl_held']:

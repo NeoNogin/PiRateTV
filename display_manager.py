@@ -201,3 +201,57 @@ class DisplayManager:
             # For ST7789, dimming is often simulated by turning off or just not doing anything
             # if a true dimming feature isn't available. Here, it will effectively just wait for off.
             pass
+
+    def draw_menu(self, title, items, selected_index):
+        """Draws a vertical menu list with scrolling."""
+        if not self.disp: return
+        if not self.screen_on: self.turn_on_backlight()
+
+        self.draw.rectangle((0, 0, self.width, self.height), fill="black")
+
+        # Title Bar
+        self.draw.rectangle((0, 0, self.width, 30), fill="darkblue")
+        self._draw_text_centered(self.draw, 5, title, self.font_medium, fill="white")
+
+        # Menu Configuration
+        MAX_VISIBLE_ITEMS = 7
+        ITEM_HEIGHT = 25
+        START_Y = 35
+
+        # Determine viewport (scrolling)
+        start_index = 0
+        if selected_index >= MAX_VISIBLE_ITEMS:
+             start_index = selected_index - MAX_VISIBLE_ITEMS + 1
+        
+        end_index = min(start_index + MAX_VISIBLE_ITEMS, len(items))
+
+        y = START_Y
+        for i in range(start_index, end_index):
+            item_text = items[i]
+            # Truncate text if too long
+            # Simple truncation for now, could be improved with text width calculation
+            if len(item_text) > 25:
+                item_text = item_text[:22] + "..."
+
+            if i == selected_index:
+                # Highlight selection (White bar, Black text)
+                self.draw.rectangle((0, y, self.width, y + ITEM_HEIGHT), fill="white")
+                self.draw.text((10, y + 4), f"> {item_text}", font=self.font_medium, fill="black")
+            else:
+                # Normal item (Black bg, White text)
+                self.draw.text((10, y + 4), item_text, font=self.font_medium, fill="white")
+            y += ITEM_HEIGHT
+        
+        # Draw Scrollbar Indicators if list is long
+        if start_index > 0:
+            self._draw_text_centered(self.draw, 30, "^", self.font_small, fill="gray")
+        if end_index < len(items):
+             self._draw_text_centered(self.draw, self.height - 15, "v", self.font_small, fill="gray")
+
+        # Apply rotation
+        output_image = self.image
+        if self.current_rotation != 0:
+            output_image = self.image.rotate(self.current_rotation)
+
+        self.disp.display(output_image)
+        self.last_update_time = time.time()

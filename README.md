@@ -90,10 +90,10 @@ The buttons are mapped as follows (based on standard Pirate Audio layout):
 
 | Button | Position | Action |
 | :--- | :--- | :--- |
-| **A** | Top Left | **Short Press:** Previous Episode <br> **Long Press:** Rewind 30s |
-| **B** | Top Right | **Short Press:** Next Episode <br> **Long Press:** Fast Forward 30s |
-| **X** | Bottom Left | **Short Press:** Toggle Shuffle Mode <br> **Long Press:** Sleep / Wake |
-| **Y** | Bottom Right | **Short Press:** Next Show <br> **Long Press:** Rotate Screen (0°, 90°, 180°, 270°) |
+| **A** | Top Left | **Short Press:** Previous Episode (Up in Menu) <br> **Long Press:** **Enter Menu Mode** |
+| **B** | Top Right | **Short Press:** Next Episode (Select in Menu) <br> **Long Press:** Fast Forward 30s |
+| **X** | Bottom Left | **Short Press:** Toggle Shuffle (Down in Menu) <br> **Long Press:** Sleep / Wake |
+| **Y** | Bottom Right | **Short Press:** Next Show (Back in Menu) <br> **Long Press:** Rotate Screen (0°, 90°, 180°, 270°) |
 | **Y + X** | Combo | **Hold Y, then Press X:** Cycle Volume |
 
 ## Configuration
@@ -149,7 +149,7 @@ Future features and enhancements planned for PITV:
 ### 1. Visual & UI Enhancements
 - [ ] **Cover Art Support**: Display `poster.jpg` or `folder.jpg` from Show/Season directories.
 - [ ] **Visual Progress Bar**: Slim progress bar at the bottom of the screen.
-- [ ] **"TV Guide" / Menu Mode**: Visual list navigation for Shows/Episodes (e.g., hold A+B to enter).
+- [x] **"TV Guide" / Menu Mode**: Visual list navigation for Shows/Episodes.
 
 ### 2. Advanced Playback Features
 - [x] **"Shuffle / Channel Surfing" Mode**: Randomly play episodes from any show.
