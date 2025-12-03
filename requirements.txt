@@ -1,0 +1,6 @@
+gpiozero
+python-vlc
+st7789
+Pillow
+rpi-lgpio
+spidev
