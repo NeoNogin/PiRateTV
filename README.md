@@ -1,5 +1,7 @@
 # PITV - Pirate Audio Media Player
 
+![PITV Device](PXL_20251203_014012991.MP.jpg)
+
 A custom Python media player application designed for the Raspberry Pi (specifically tested on Pi Zero W) equipped with a Pimoroni Pirate Audio HAT (or compatible ST7789 display and GPIO buttons).
 
 This application allows you to play video files (audio output via DAC), navigate through Shows and Seasons, and tracks your playback progress so you can resume exactly where you left off.
@@ -70,6 +72,17 @@ The application expects the following folder structure to correctly identify Sho
 ```
 
 Supported video formats: `.mp4`, `.mkv`, `.avi` (configurable in `media_manager.py`).
+
+### Media Conversion (Recommended)
+
+To ensure smooth playback on the Raspberry Pi Zero W and the small display, it is recommended to convert your video files to a resolution of 240x240 and a lower frame rate (e.g., 15fps).
+
+A Windows batch script `convert_for_pirate.bat` is included to help with this.
+
+**Using the conversion script:**
+1. Ensure you have [FFmpeg](https://ffmpeg.org/download.html) installed and in your system PATH.
+2. Drag and drop your video files onto `convert_for_pirate.bat`.
+3. The converted files will be saved in a `converted` folder created in the same directory.
 
 ## Controls
 
