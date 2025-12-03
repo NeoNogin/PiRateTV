@@ -80,7 +80,8 @@ def save_current_state():
         current_episode_idx=media_manager.current_episode_idx,
         playback_position=playback_pos,
         volume_percent=audio_manager.get_current_volume(),
-        is_sleeping=is_sleeping
+        is_sleeping=is_sleeping,
+        shuffle_enabled=media_manager.shuffle_enabled
     )
     print(f"State saved at position: {playback_pos:.2f}s")
 
@@ -127,7 +128,8 @@ def update_display():
         current_time_str=format_time(current_pos_s),
         total_time_str=format_time(total_duration_s),
         volume_percent=audio_manager.get_current_volume(),
-        is_playing=media_player.is_playing()
+        is_playing=media_player.is_playing(),
+        is_shuffled=media_manager.shuffle_enabled
     )
 
 def format_time(seconds):
@@ -194,6 +196,13 @@ def handle_cycle_volume():
     print("Button: Cycle Volume")
     new_volume = audio_manager.cycle_volume_preset()
     media_player.audio_set_volume(new_volume)
+    update_display()
+
+def handle_toggle_shuffle():
+    if is_sleeping: wake_up(); return
+    new_state = not media_manager.shuffle_enabled
+    media_manager.set_shuffle_mode(new_state)
+    print(f"Button: Toggle Shuffle -> {new_state}")
     update_display()
 
 def handle_sleep_wake():
@@ -269,7 +278,9 @@ def setup():
         'tl_held': False,
         'tr_held': False,
         'bl_held': False,
-        'br_held': False
+        'br_held': False,
+        'bl_action_handled': False, # To track if X was used in combo
+        'br_used_as_modifier': False # To track if Y was used as modifier
     }
 
     # --- Top Left (A): Prev Episode (Short) / Rewind (Long) ---
@@ -300,20 +311,39 @@ def setup():
     # Clear old simple handlers if any
     button_tr.when_pressed = None
 
-    # --- Bottom Left (X): Volume (Short) / Sleep (Long) ---
+    # --- Bottom Left (X): Shuffle (Short) / Sleep (Long) / Volume (If Y held) ---
+    def on_bl_pressed():
+        # Check if Y is held down to trigger Combo
+        if button_br.is_pressed:
+            print("Combo: Y held + X pressed -> Cycle Volume")
+            button_states['br_used_as_modifier'] = True
+            handle_cycle_volume()
+            # Mark action as handled so release doesn't trigger shuffle
+            button_states['bl_action_handled'] = True
+        else:
+            button_states['bl_action_handled'] = False
+
     def on_bl_held():
+        if button_states.get('bl_action_handled', False): return
+        
         button_states['bl_held'] = True
-        handle_sleep_wake() # Sleep is now long press
+        handle_sleep_wake()
 
     def on_bl_released():
+        # If action was handled (e.g. combo), reset flag and do nothing
+        if button_states.get('bl_action_handled', False):
+            button_states['bl_action_handled'] = False
+            return
+
         if not button_states['bl_held']:
-            handle_cycle_volume()
+            handle_toggle_shuffle() # Short press is now Shuffle
         button_states['bl_held'] = False
 
+    button_bl.when_pressed = on_bl_pressed
     button_bl.when_held = on_bl_held
     button_bl.when_released = on_bl_released
     
-    # --- Bottom Right (Y): Next Show (Short) / Rotate (Long) ---
+    # --- Bottom Right (Y): Next Show (Short) / Rotate (Long) / Modifier ---
     def on_br_held():
         # Only trigger if we haven't already triggered for this hold press
         if not button_states['br_held']:
@@ -321,13 +351,15 @@ def setup():
             handle_rotate_screen()
 
     def on_br_released():
-        if not button_states['br_held']:
+        # If used as modifier, do NOT trigger Next Show
+        if not button_states['br_held'] and not button_states.get('br_used_as_modifier', False):
             handle_next_show()
+        
         button_states['br_held'] = False
+        button_states['br_used_as_modifier'] = False # Reset modifier flag
 
     button_br.when_held = on_br_held
     button_br.when_released = on_br_released
-    # Note: we do NOT set button_br.when_pressed, as we handle the action on release
 
     # Attach VLC event listener
     event_manager.event_attach(vlc.EventType.MediaPlayerEndReached, handle_media_ended)
@@ -348,6 +380,9 @@ def setup():
     audio_manager.set_volume_by_value(initial_state['volume_percent'])
     media_player.audio_set_volume(initial_state['volume_percent'])
     
+    if 'shuffle_enabled' in initial_state:
+        media_manager.set_shuffle_mode(initial_state['shuffle_enabled'])
+
     # Start playback based on loaded state
     if initial_state.get('is_sleeping', False):
         go_to_sleep()

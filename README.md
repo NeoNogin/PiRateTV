@@ -92,8 +92,9 @@ The buttons are mapped as follows (based on standard Pirate Audio layout):
 | :--- | :--- | :--- |
 | **A** | Top Left | **Short Press:** Previous Episode <br> **Long Press:** Rewind 30s |
 | **B** | Top Right | **Short Press:** Next Episode <br> **Long Press:** Fast Forward 30s |
-| **X** | Bottom Left | **Short Press:** Cycle Volume <br> **Long Press:** Sleep / Wake |
+| **X** | Bottom Left | **Short Press:** Toggle Shuffle Mode <br> **Long Press:** Sleep / Wake |
 | **Y** | Bottom Right | **Short Press:** Next Show <br> **Long Press:** Rotate Screen (0°, 90°, 180°, 270°) |
+| **Y + X** | Combo | **Hold Y, then Press X:** Cycle Volume |
 
 ## Configuration
 
@@ -140,3 +141,26 @@ To run automatically on startup, consider adding a systemd service or a crontab 
 - **Display not working**: Ensure SPI is enabled in `sudo raspi-config`.
 - **No Audio**: Check your ALSA configuration (`/boot/config.txt`) to ensure the DAC is enabled (e.g., `dtoverlay=hifiberry-dac`).
 - **Permission Errors**: Ensure the user running the script has permissions to read the media directory and write to the state file.
+
+## Roadmap
+
+Future features and enhancements planned for PITV:
+
+### 1. Visual & UI Enhancements
+- [ ] **Cover Art Support**: Display `poster.jpg` or `folder.jpg` from Show/Season directories.
+- [ ] **Visual Progress Bar**: Slim progress bar at the bottom of the screen.
+- [ ] **"TV Guide" / Menu Mode**: Visual list navigation for Shows/Episodes (e.g., hold A+B to enter).
+
+### 2. Advanced Playback Features
+- [x] **"Shuffle / Channel Surfing" Mode**: Randomly play episodes from any show.
+- [ ] **Resume-Per-Show**: Track playback progress individually for each show.
+- [ ] **Sleep Timer**: Auto-stop and sleep after a set duration.
+
+### 3. Remote Management
+- [ ] **Web Interface**: Control playback via a phone/PC browser.
+- [ ] **File Upload Server**: Upload media files via the web interface.
+- [ ] **WiFi / IP Status**: Display IP address on the screen for easier connection.
+
+### 4. Hardware Integrations
+- [ ] **Battery Status**: Support for PiSugar or UPS HAT battery monitoring.
+- [ ] **Bluetooth Audio**: Manager for connecting Bluetooth headphones/speakers.

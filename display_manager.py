@@ -99,7 +99,7 @@ class DisplayManager:
         x = (self.width - text_width) / 2
         draw.text((x, y), text, font=font, fill=fill)
 
-    def show_playback_info(self, show_info, current_time_str="00:00", total_time_str="00:00", volume_percent=100, is_playing=True):
+    def show_playback_info(self, show_info, current_time_str="00:00", total_time_str="00:00", volume_percent=100, is_playing=True, is_shuffled=False):
         """Displays current playback information on the screen."""
         if not self.disp: # If display not initialized, print to console instead
             print(f"Display not available. Now playing: {show_info['show']} - {show_info['episode']} ({current_time_str}/{total_time_str}) Vol: {volume_percent}%")
@@ -119,6 +119,8 @@ class DisplayManager:
 
         # Playback Status
         status_text = "PLAYING" if is_playing else "PAUSED"
+        if is_shuffled:
+            status_text += " [SHUFFLE]"
         self._draw_text_centered(self.draw, 100, status_text, self.font_small, fill="green" if is_playing else "yellow")
 
         # Playback Time

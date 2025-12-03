@@ -1,6 +1,7 @@
 # media_manager.py
 import os
 import glob
+import random
 
 class MediaManager:
     def __init__(self, media_root_dir):
@@ -9,6 +10,8 @@ class MediaManager:
         self.current_show_idx = 0
         self.current_season_idx = 0
         self.current_episode_idx = 0
+        self.shuffle_enabled = False
+        self.all_episodes = []
         self._scan_media()
 
     def _scan_media(self):
@@ -34,6 +37,26 @@ class MediaManager:
 
         if not self.shows:
             print(f"Warning: No media found in {self.media_root_dir}")
+
+        # Flatten library for shuffle
+        self.all_episodes = []
+        for show_idx, show in enumerate(self.shows):
+            for season_idx, season in enumerate(show['seasons']):
+                for episode_idx, _ in enumerate(season['episodes']):
+                    self.all_episodes.append((show_idx, season_idx, episode_idx))
+
+    def set_shuffle_mode(self, enabled):
+        """Enables or disables shuffle mode."""
+        self.shuffle_enabled = enabled
+        print(f"Shuffle mode set to: {enabled}")
+
+    def get_random_episode(self):
+        """Selects a random episode from the flattened library."""
+        if not self.all_episodes: return
+        
+        show_idx, season_idx, episode_idx = random.choice(self.all_episodes)
+        self.set_current_indices(show_idx, season_idx, episode_idx)
+        print(f"Random episode selected: {self.get_current_episode_info()}")
 
     def get_current_episode_path(self):
         """Returns the full path to the current episode."""
@@ -65,6 +88,10 @@ class MediaManager:
         """Advances to the next episode, or next season/show if at end."""
         if not self.shows: return
         
+        if self.shuffle_enabled:
+            self.get_random_episode()
+            return
+
         self.current_episode_idx += 1
         current_season_episodes = self.shows[self.current_show_idx]['seasons'][self.current_season_idx]['episodes']
         
