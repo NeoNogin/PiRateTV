@@ -1,12 +1,9 @@
-from flask import Flask, jsonify, request, render_template, Response
+from flask import Flask, jsonify, request, render_template, Response, send_from_directory
 import threading
-import queue
-import time
 
 # --- Globals ---
 app = Flask(__name__)
 main_app = None
-video_queue = None
 
 # --- Routes ---
 @app.route('/', methods=['GET'])
@@ -56,33 +53,22 @@ def volume_down():
     new_volume = main_app.volume_down()
     return jsonify({"status": "ok", "volume": new_volume}), 200
 
-def generate_frames():
-    """Generator function to yield frames from the queue."""
-    while True:
-        try:
-            # Block until a frame is available, with a timeout
-            frame = video_queue.get(timeout=1.0)
-            yield (b'--frame\r\n'
-                   b'Content-Type: image/jpeg\r\n\r\n' + frame + b'\r\n')
-        except (queue.Empty, AttributeError):
-            # If queue is empty or not yet assigned, do nothing
-            # A placeholder image could be sent here instead
-            time.sleep(0.1)
 
-@app.route('/video_feed')
-def video_feed():
-    """Route to stream video frames."""
-    return Response(generate_frames(),
-                    mimetype='multipart/x-mixed-replace; boundary=frame')
+@app.route('/current_video')
+def current_video():
+    """Route to serve the current video file."""
+    video_path, filename = main_app.get_current_video_path()
+    if video_path and filename:
+        return send_from_directory(video_path, filename, as_attachment=True)
+    return "No video selected", 404
 
 # --- Web Server Control ---
-def run_web_server(main_instance, frame_queue):
+def run_web_server(main_instance):
     """
     Runs the Flask web server in a separate thread.
     """
-    global main_app, video_queue
+    global main_app
     main_app = main_instance
-    video_queue = frame_queue
     
     # Use a production-ready server if available, otherwise fallback to Flask's dev server
     try:
@@ -93,11 +79,11 @@ def run_web_server(main_instance, frame_queue):
         # Note: Flask's dev server is not recommended for production.
         app.run(host='0.0.0.0', port=5000, debug=False)
 
-def start_web_server_thread(main_instance, frame_queue):
+def start_web_server_thread(main_instance):
     """
     Initializes and starts the web server in a daemon thread.
     """
-    web_thread = threading.Thread(target=run_web_server, args=(main_instance, frame_queue), name="WebServerThread")
+    web_thread = threading.Thread(target=run_web_server, args=(main_instance,), name="WebServerThread")
     web_thread.daemon = True  # Allows main app to exit even if this thread is running
     web_thread.start()
     print("Web server started on http://0.0.0.0:5000")

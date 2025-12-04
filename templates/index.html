@@ -20,16 +20,16 @@
         <h1>PITV Remote Control</h1>
 
         <div class="video-stream" style="margin-bottom: 20px;">
-            <h2>Live Feed</h2>
-            <img src="/video_feed" width="100%" style="background-color: #000;" alt="Live Video Stream">
+            <h2>Video Player</h2>
+            <video id="video-player" src="/current_video" width="100%" controls autoplay>
+                Your browser does not support the video tag.
+            </video>
         </div>
 
         <div class="controls">
-            <h2>Playback</h2>
+            <h2>Device Remote</h2>
             <button onclick="sendCommand('/play')">Play/Pause</button>
-            <button onclick="sendCommand('/next')">Next Episode</button>
-            <button onclick="sendCommand('/volume/up')">Volume Up</button>
-            <button onclick="sendCommand('/volume/down')">Volume Down</button>
+            <button onclick="sendCommand('/next').then(() => location.reload())">Next Episode</button>
         </div>
 
         <div class="upload">
@@ -50,16 +50,20 @@
         async function sendCommand(endpoint) {
             const statusDiv = document.getElementById('status-message');
             statusDiv.textContent = `Sending command: ${endpoint}...`;
-            try {
-                const response = await fetch(endpoint, { method: 'POST' });
-                if (!response.ok) {
-                    throw new Error(`HTTP error! status: ${response.status}`);
+            return new Promise(async (resolve, reject) => {
+                try {
+                    const response = await fetch(endpoint, { method: 'POST' });
+                    if (!response.ok) {
+                        throw new Error(`HTTP error! status: ${response.status}`);
+                    }
+                    const result = await response.json();
+                    statusDiv.textContent = `Command successful: ${JSON.stringify(result)}`;
+                    resolve(result);
+                } catch (error) {
+                    statusDiv.textContent = `Error: ${error.message}`;
+                    reject(error);
                 }
-                const result = await response.json();
-                statusDiv.textContent = `Command successful: ${JSON.stringify(result)}`;
-            } catch (error) {
-                statusDiv.textContent = `Error: ${error.message}`;
-            }
+            });
         }
 
         const uploadForm = document.getElementById('upload-form');
