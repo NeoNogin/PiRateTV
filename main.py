@@ -7,6 +7,8 @@ import vlc
 import atexit
 import ctypes
 from PIL import Image
+import queue
+import io
 
 import config
 from media_manager import MediaManager
@@ -17,6 +19,7 @@ from menu_manager import MenuManager
 from web_server import start_web_server_thread
 
 # --- Global Application State & Managers ---
+video_frame_queue = queue.Queue(maxsize=1) # For serving video frames to the web server
 vlc_instance = vlc.Instance("--aout=alsa", "--quiet", "--no-video-title-show", "--no-xlib")
 media_player = vlc_instance.media_player_new()
 event_manager = media_player.event_manager()
@@ -60,6 +63,22 @@ def display_cb(opaque, picture):
     # 'RV24' corresponds to RGB
     try:
         img = Image.frombytes("RGB", (VIDEO_WIDTH, VIDEO_HEIGHT), video_buffer.raw, "raw", "RGB")
+        
+        # --- For Web Streaming ---
+        # Convert PIL Image to JPEG in memory
+        with io.BytesIO() as output:
+            img.save(output, format="JPEG", quality=75) # Adjust quality for performance
+            jpeg_frame = output.getvalue()
+
+        # If the queue is full, remove the old frame to make space for the new one
+        if video_frame_queue.full():
+            try:
+                video_frame_queue.get_nowait()
+            except queue.Empty:
+                pass # Should not happen if full, but good practice
+        video_frame_queue.put_nowait(jpeg_frame)
+        # --- End Web Streaming ---
+
         display_manager.display_frame(img)
     except Exception as e:
         print(f"Frame error: {e}")
@@ -499,8 +518,8 @@ class MainApp:
         self.is_playing = is_playing
         self.media_ended_flag = media_ended_flag
         
-        # Start the web server in a separate thread
-        start_web_server_thread(self)
+        # Start the web server in a separate thread, passing the frame queue
+        start_web_server_thread(self, video_frame_queue)
 
     def play_pause(self):
         """Toggles play/pause state of the media player."""
@@ -534,6 +553,26 @@ class MainApp:
         # Optionally, you might want to switch to the new show/episode
         # or just let the user navigate to it.
         print("Media library rescanned.")
+
+    def volume_up(self):
+        """Increases the volume by a step and returns the new volume."""
+        current_volume = self.audio_manager.get_current_volume()
+        new_volume = min(current_volume + 10, 100)  # Step of 10, max 100
+        self.audio_manager.set_volume_by_value(new_volume)
+        self.media_player.audio_set_volume(new_volume)
+        print(f"Volume increased to {new_volume}% (Web UI)")
+        update_display()
+        return new_volume
+
+    def volume_down(self):
+        """Decreases the volume by a step and returns the new volume."""
+        current_volume = self.audio_manager.get_current_volume()
+        new_volume = max(current_volume - 10, 0)  # Step of 10, min 0
+        self.audio_manager.set_volume_by_value(new_volume)
+        self.media_player.audio_set_volume(new_volume)
+        print(f"Volume decreased to {new_volume}% (Web UI)")
+        update_display()
+        return new_volume
 
 # --- Main Loop ---
 if __name__ == "__main__":

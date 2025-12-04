@@ -19,10 +19,17 @@
     <div class="container">
         <h1>PITV Remote Control</h1>
 
+        <div class="video-stream" style="margin-bottom: 20px;">
+            <h2>Live Feed</h2>
+            <img src="/video_feed" width="100%" style="background-color: #000;" alt="Live Video Stream">
+        </div>
+
         <div class="controls">
             <h2>Playback</h2>
             <button onclick="sendCommand('/play')">Play/Pause</button>
             <button onclick="sendCommand('/next')">Next Episode</button>
+            <button onclick="sendCommand('/volume/up')">Volume Up</button>
+            <button onclick="sendCommand('/volume/down')">Volume Down</button>
         </div>
 
         <div class="upload">
