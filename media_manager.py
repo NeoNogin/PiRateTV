@@ -153,3 +153,27 @@ class MediaManager:
             self.current_season_idx = 0
             self.current_episode_idx = 0
         print(f"Set indices to: {self.get_current_episode_info()}")
+
+    def list_directory(self, sub_path=''):
+        """Lists the contents of a directory within the media root."""
+        # Security: Prevent directory traversal attacks
+        base_path = os.path.abspath(self.media_root_dir)
+        target_path = os.path.abspath(os.path.join(base_path, sub_path))
+
+        if not target_path.startswith(base_path):
+            return {"error": "Access denied"}, 403
+
+        try:
+            items = os.listdir(target_path)
+            contents = {'dirs': [], 'files': []}
+            for item in sorted(items):
+                item_path = os.path.join(target_path, item)
+                if os.path.isdir(item_path):
+                    contents['dirs'].append(item)
+                else:
+                    contents['files'].append(item)
+            return contents, 200
+        except FileNotFoundError:
+            return {"error": "Directory not found"}, 404
+        except Exception as e:
+            return {"error": str(e)}, 500

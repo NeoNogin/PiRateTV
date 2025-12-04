@@ -29,19 +29,42 @@ def next_episode():
     main_app.next_episode()
     return jsonify({"status": "ok"}), 200
 
+@app.route('/browse', defaults={'sub_path': ''})
+@app.route('/browse/<path:sub_path>')
+def browse(sub_path):
+    """Route to browse the media directory."""
+    contents, status_code = main_app.media_manager.list_directory(sub_path)
+    return jsonify(contents), status_code
+
+@app.route('/play_media', methods=['POST'])
+def play_media():
+    """Route to play a specific media file."""
+    data = request.get_json()
+    file_path = data.get('path')
+    if not file_path:
+        return jsonify({"error": "No file path provided"}), 400
+    
+    # Security check to ensure path is within media directory
+    if not main_app.is_safe_path(file_path):
+        return jsonify({"error": "Access denied"}), 403
+
+    main_app.play_media(file_path)
+    return jsonify({"status": "ok"}), 200
+
 @app.route('/upload', methods=['POST'])
 def upload_file():
-    if 'file' not in request.files:
-        return jsonify({"error": "No file part"}), 400
-    file = request.files['file']
-    if file.filename == '':
-        return jsonify({"error": "No selected file"}), 400
-    if file:
-        # In a real app, you'd want to secure the filename
-        filename = file.filename
-        # The main_app instance should have a method to handle the upload
-        main_app.handle_upload(file, filename)
-        return jsonify({"status": "ok", "filename": filename}), 200
+    files = request.files.getlist('files[]') # Changed to handle multiple files
+    if not files:
+        return jsonify({"error": "No files part"}), 400
+
+    for file in files:
+        if file.filename == '':
+            continue # Skip empty file parts
+        if file:
+            # The main_app instance should have a method to handle the upload
+            main_app.handle_upload(file, file.filename)
+            
+    return jsonify({"status": "ok", "uploaded_files": [f.filename for f in files if f.filename != '']}), 200
 
 @app.route('/volume/up', methods=['POST'])
 def volume_up():
@@ -59,8 +82,15 @@ def current_video():
     """Route to serve the current video file."""
     video_path, filename = main_app.get_current_video_path()
     if video_path and filename:
-        return send_from_directory(video_path, filename, as_attachment=True)
+        return send_from_directory(video_path, filename)
     return "No video selected", 404
+
+@app.route('/media/<path:filename>')
+def serve_media(filename):
+    """Route to serve media files for the browser player."""
+    if main_app.is_safe_path(filename):
+        return send_from_directory(main_app.media_manager.media_root_dir, filename)
+    return "Not Found", 404
 
 # --- Web Server Control ---
 def run_web_server(main_instance):

@@ -16,6 +16,9 @@ from state_manager import StateManager
 from menu_manager import MenuManager
 from web_server import start_web_server_thread
 
+# --- Ensure Media Directory Exists ---
+os.makedirs(config.MEDIA_ROOT_DIR, exist_ok=True)
+
 # --- Global Application State & Managers ---
 vlc_instance = vlc.Instance("--aout=alsa", "--quiet", "--no-video-title-show", "--no-xlib")
 media_player = vlc_instance.media_player_new()
@@ -327,8 +330,6 @@ def handle_media_ended(event):
 # --- System Setup & Teardown ---
 def setup():
     """Initializes the application, loads state, and assigns button actions."""
-    # Ensure media directories exist
-    os.makedirs(config.MEDIA_ROOT_DIR, exist_ok=True)
     font_dir = os.path.join(os.path.dirname(__file__), 'fonts')
     os.makedirs(font_dir, exist_ok=True)
     
@@ -499,6 +500,7 @@ class MainApp:
         self.is_sleeping = is_sleeping
         self.is_playing = is_playing
         self.media_ended_flag = media_ended_flag
+        self.media_ended_flag = media_ended_flag
         
         # Start the web server in a separate thread
         start_web_server_thread(self)
@@ -507,40 +509,67 @@ class MainApp:
         """Toggles play/pause state of the media player."""
         if self.media_player.is_playing():
             self.media_player.pause()
-            print("Playback paused (Web UI)")
         else:
             self.media_player.play()
-            print("Playback resumed (Web UI)")
-        update_display()
-    
+
     def next_episode(self):
-        """Skips to the next episode."""
-        print("Next episode (Web UI)")
+        """Handles the logic for playing the next episode."""
         handle_next_episode()
 
-    def handle_upload(self, file, filename):
-        """Saves an uploaded file and rescans the media library."""
-        # Note: In a real-world scenario, you'd want to sanitize the filename
-        # and ensure the directory is secure.
-        save_path = os.path.join(config.MEDIA_ROOT_DIR, filename)
-        
-        # Create the directory if it doesn't exist
-        os.makedirs(os.path.dirname(save_path), exist_ok=True)
-        
-        file.save(save_path)
-        print(f"File '{filename}' uploaded successfully to '{save_path}'")
-        
-        # Rescan the media library to include the new file
-        self.media_manager.scan_media()
-        # Optionally, you might want to switch to the new show/episode
-        # or just let the user navigate to it.
-        print("Media library rescanned.")
-
     def volume_up(self):
-        """Increases the volume by a step and returns the new volume."""
-        current_volume = self.audio_manager.get_current_volume()
-        new_volume = min(current_volume + 10, 100)  # Step of 10, max 100
-        self.audio_manager.set_volume_by_value(new_volume)
+        """Increases the volume."""
+        new_volume = self.audio_manager.volume_up()
+        self.media_player.audio_set_volume(new_volume)
+        return new_volume
+
+    def volume_down(self):
+        """Decreases the volume."""
+        new_volume = self.audio_manager.volume_down()
+        self.media_player.audio_set_volume(new_volume)
+        return new_volume
+
+    def get_current_video_path(self):
+        """Returns the path and filename of the current video for streaming."""
+        episode_path = self.media_manager.get_current_episode_path()
+        if episode_path and os.path.exists(episode_path):
+            directory, filename = os.path.split(episode_path)
+            return directory, filename
+        return None, None
+
+    def is_safe_path(self, path_to_check):
+        """Checks if a given path is safely within the media root directory."""
+        base_path = os.path.abspath(self.media_manager.media_root_dir)
+        check_path = os.path.abspath(os.path.join(base_path, path_to_check))
+        return os.path.commonpath([base_path]) == os.path.commonpath([base_path, check_path])
+
+    def play_media(self, file_path):
+        """Plays a specific media file."""
+        # This assumes the file_path is a full, safe path to a media file
+        stop_playback()
+        # You might need a way to figure out show/season/episode from path
+        # For now, let's just play it directly.
+        start_playback(os.path.join(self.media_manager.media_root_dir, file_path))
+
+    def handle_upload(self, file_stream, filename):
+        """Handles file uploads from the web interface."""
+        # This is a basic implementation. You'll need to decide where
+        # to save files. For now, let's save to the media root.
+        # A more robust solution would involve letting the user choose the directory.
+        save_path = os.path.join(self.media_manager.media_root_dir, filename)
+        
+        # Security: Sanitize filename
+        from werkzeug.utils import secure_filename
+        safe_filename = secure_filename(filename)
+        save_path = os.path.join(self.media_manager.media_root_dir, safe_filename)
+
+        try:
+            with open(save_path, 'wb') as f:
+                f.write(file_stream.read())
+            print(f"File uploaded successfully to {save_path}")
+            # After upload, you might want to rescan the media library
+            self.media_manager.scan_media()
+        except Exception as e:
+            print(f"Error saving uploaded file: {e}")
         self.media_player.audio_set_volume(new_volume)
         print(f"Volume increased to {new_volume}% (Web UI)")
         update_display()

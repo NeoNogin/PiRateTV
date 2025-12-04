@@ -6,13 +6,18 @@
     <title>PITV Remote</title>
     <style>
         body { font-family: sans-serif; background-color: #282c34; color: white; padding: 20px; }
-        .container { max-width: 600px; margin: auto; }
-        .controls, .upload, .status { background-color: #444; border-radius: 8px; padding: 20px; margin-bottom: 20px; }
+        .container { max-width: 800px; margin: auto; }
+        .controls, .upload, .status, .browser { background-color: #444; border-radius: 8px; padding: 20px; margin-bottom: 20px; }
         h1, h2 { color: #61dafb; }
         button { background-color: #61dafb; color: black; border: none; padding: 10px 20px; border-radius: 5px; cursor: pointer; font-size: 16px; margin: 5px; }
         button:hover { background-color: #21a1f2; }
         input[type="file"] { margin-top: 10px; }
         #status-message { margin-top: 10px; color: #999; }
+        .browser-list { list-style: none; padding: 0; }
+        .browser-list li { padding: 8px; cursor: pointer; border-bottom: 1px solid #555; }
+        .browser-list li:hover { background-color: #555; }
+        .browser-list li.dir { color: #61dafb; font-weight: bold; }
+        .browser-list li.file { color: #ccc; }
     </style>
 </head>
 <body>
@@ -21,7 +26,7 @@
 
         <div class="video-stream" style="margin-bottom: 20px;">
             <h2>Video Player</h2>
-            <video id="video-player" src="/current_video" width="100%" controls autoplay>
+            <video id="video-player" width="100%" controls autoplay>
                 Your browser does not support the video tag.
             </video>
         </div>
@@ -29,13 +34,19 @@
         <div class="controls">
             <h2>Device Remote</h2>
             <button onclick="sendCommand('/play')">Play/Pause</button>
-            <button onclick="sendCommand('/next').then(() => location.reload())">Next Episode</button>
+            <button onclick="sendCommand('/next')">Next Episode</button>
+        </div>
+
+        <div class="browser">
+            <h2>File Browser</h2>
+            <h3 id="current-path">/</h3>
+            <ul id="file-browser-list" class="browser-list"></ul>
         </div>
 
         <div class="upload">
             <h2>Upload Media</h2>
             <form id="upload-form" enctype="multipart/form-data">
-                <input type="file" name="file" id="file-input" required>
+                <input type="file" name="files[]" id="file-input" multiple required>
                 <button type="submit">Upload</button>
             </form>
         </div>
@@ -47,23 +58,86 @@
     </div>
 
     <script>
-        async function sendCommand(endpoint) {
+        let currentPath = '';
+
+        async function sendCommand(endpoint, body = null) {
             const statusDiv = document.getElementById('status-message');
             statusDiv.textContent = `Sending command: ${endpoint}...`;
-            return new Promise(async (resolve, reject) => {
-                try {
-                    const response = await fetch(endpoint, { method: 'POST' });
-                    if (!response.ok) {
-                        throw new Error(`HTTP error! status: ${response.status}`);
-                    }
-                    const result = await response.json();
-                    statusDiv.textContent = `Command successful: ${JSON.stringify(result)}`;
-                    resolve(result);
-                } catch (error) {
-                    statusDiv.textContent = `Error: ${error.message}`;
-                    reject(error);
+            try {
+                const options = {
+                    method: 'POST',
+                    headers: body ? { 'Content-Type': 'application/json' } : {},
+                    body: body ? JSON.stringify(body) : null
+                };
+                const response = await fetch(endpoint, options);
+                if (!response.ok) {
+                    throw new Error(`HTTP error! status: ${response.status}`);
                 }
+                const result = await response.json();
+                statusDiv.textContent = `Command successful: ${JSON.stringify(result)}`;
+                return result;
+            } catch (error) {
+                statusDiv.textContent = `Error: ${error.message}`;
+                throw error;
+            }
+        }
+
+        async function browse(path) {
+            const statusDiv = document.getElementById('status-message');
+            statusDiv.textContent = `Browsing: ${path}...`;
+            try {
+                const browsePath = path ? `/${path}` : '';
+                const response = await fetch(`/browse${browsePath}`);
+                if (!response.ok) {
+                    throw new Error(`HTTP error! status: ${response.status}`);
+                }
+                const data = await response.json();
+                updateBrowser(path, data);
+            } catch (error) {
+                statusDiv.textContent = `Error: ${error.message}`;
+            }
+        }
+
+        function updateBrowser(path, data) {
+            currentPath = path;
+            document.getElementById('current-path').textContent = `/${path}`;
+            const list = document.getElementById('file-browser-list');
+            list.innerHTML = '';
+
+            // Add '..' for parent directory
+            if (path) {
+                const parentPath = path.substring(0, path.lastIndexOf('/'));
+                const parentLi = document.createElement('li');
+                parentLi.textContent = '..';
+                parentLi.className = 'dir';
+                parentLi.onclick = () => browse(parentPath);
+                list.appendChild(parentLi);
+            }
+
+            data.dirs.forEach(dir => {
+                const li = document.createElement('li');
+                li.textContent = dir;
+                li.className = 'dir';
+                const newPath = path ? `${path}/${dir}` : dir;
+                li.onclick = () => browse(newPath);
+                list.appendChild(li);
             });
+
+            data.files.forEach(file => {
+                const li = document.createElement('li');
+                li.textContent = file;
+                li.className = 'file';
+                const filePath = path ? `${path}/${file}` : file;
+                li.onclick = () => playMedia(filePath);
+                list.appendChild(li);
+            });
+        }
+
+        function playMedia(path) {
+            const videoPlayer = document.getElementById('video-player');
+            videoPlayer.src = `/media/${path}`;
+            videoPlayer.play();
+            sendCommand('/play_media', { path: path });
         }
 
         const uploadForm = document.getElementById('upload-form');
@@ -72,13 +146,16 @@
             const statusDiv = document.getElementById('status-message');
             const fileInput = document.getElementById('file-input');
             const formData = new FormData();
-            
+
             if (fileInput.files.length === 0) {
-                statusDiv.textContent = 'Please select a file to upload.';
+                statusDiv.textContent = 'Please select files to upload.';
                 return;
             }
 
-            formData.append('file', fileInput.files);
+            for (const file of fileInput.files) {
+                formData.append('files[]', file);
+            }
+
             statusDiv.textContent = 'Uploading...';
 
             try {
@@ -91,12 +168,16 @@
                     throw new Error(`Upload failed! status: ${response.status}`);
                 }
                 const result = await response.json();
-                statusDiv.textContent = `Upload successful: ${result.filename}`;
+                statusDiv.textContent = `Upload successful: ${result.uploaded_files.join(', ')}`;
                 fileInput.value = ''; // Clear the input
+                browse(currentPath); // Refresh browser
             } catch (error) {
                 statusDiv.textContent = `Upload error: ${error.message}`;
             }
         });
+        
+        // Initial load
+        browse('');
     </script>
 </body>
 </html>
