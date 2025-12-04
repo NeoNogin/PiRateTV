@@ -551,48 +551,36 @@ class MainApp:
         start_playback(os.path.join(self.media_manager.media_root_dir, file_path))
 
     def handle_upload(self, file_stream, filename):
-        """Handles file uploads from the web interface."""
-        # This is a basic implementation. You'll need to decide where
-        # to save files. For now, let's save to the media root.
-        # A more robust solution would involve letting the user choose the directory.
-        save_path = os.path.join(self.media_manager.media_root_dir, filename)
-        
-        # Security: Sanitize filename
+        """Handles file uploads from the web interface, preserving directory structure."""
         from werkzeug.utils import secure_filename
-        safe_filename = secure_filename(filename)
-        save_path = os.path.join(self.media_manager.media_root_dir, safe_filename)
+
+        # Sanitize each path component to prevent traversal attacks but keep directory structure.
+        # Browsers use '/' as a separator in webkitRelativePath.
+        path_parts = filename.split('/')
+        safe_parts = [secure_filename(part) for part in path_parts]
+        safe_relative_path = os.path.join(*safe_parts)
+
+        # Double-check that the resulting path is not trying to escape the media root.
+        if not self.is_safe_path(safe_relative_path):
+            print(f"Error: Unsafe path detected during upload: {safe_relative_path}")
+            return
+
+        save_path = os.path.join(self.media_manager.media_root_dir, safe_relative_path)
 
         try:
+            # Create parent directories if they don't exist
+            directory = os.path.dirname(save_path)
+            os.makedirs(directory, exist_ok=True)
+            
+            # Write the file
             with open(save_path, 'wb') as f:
                 f.write(file_stream.read())
             print(f"File uploaded successfully to {save_path}")
-            # After upload, you might want to rescan the media library
+            
+            # After upload, rescan the media library
             self.media_manager.scan_media()
         except Exception as e:
             print(f"Error saving uploaded file: {e}")
-        self.media_player.audio_set_volume(new_volume)
-        print(f"Volume increased to {new_volume}% (Web UI)")
-        update_display()
-        return new_volume
-
-    def volume_down(self):
-        """Decreases the volume by a step and returns the new volume."""
-        current_volume = self.audio_manager.get_current_volume()
-        new_volume = max(current_volume - 10, 0)  # Step of 10, min 0
-        self.audio_manager.set_volume_by_value(new_volume)
-        self.media_player.audio_set_volume(new_volume)
-        print(f"Volume decreased to {new_volume}% (Web UI)")
-        update_display()
-        return new_volume
-
-    def get_current_video_path(self):
-        """Returns the directory and filename of the current video."""
-        full_path = self.media_manager.get_current_episode_path()
-        if full_path and os.path.exists(full_path):
-            directory = os.path.dirname(full_path)
-            filename = os.path.basename(full_path)
-            return directory, filename
-        return None, None
 
 # --- Main Loop ---
 if __name__ == "__main__":

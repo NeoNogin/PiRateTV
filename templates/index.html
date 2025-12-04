@@ -46,7 +46,7 @@
         <div class="upload">
             <h2>Upload Media</h2>
             <form id="upload-form" enctype="multipart/form-data">
-                <input type="file" name="files[]" id="file-input" multiple required>
+                <input type="file" name="files[]" id="file-input" multiple required webkitdirectory>
                 <button type="submit">Upload</button>
             </form>
         </div>
@@ -153,7 +153,7 @@
             }
 
             for (const file of fileInput.files) {
-                formData.append('files[]', file);
+                formData.append('files[]', file, file.webkitRelativePath);
             }
 
             statusDiv.textContent = 'Uploading...';
