@@ -12,9 +12,9 @@ class MediaManager:
         self.current_episode_idx = 0
         self.shuffle_enabled = False
         self.all_episodes = []
-        self._scan_media()
+        self.scan_media()
 
-    def _scan_media(self):
+    def scan_media(self):
         """Scans the media_root_dir for shows, seasons, and episodes."""
         self.shows = []
         show_dirs = sorted([d for d in os.listdir(self.media_root_dir) if os.path.isdir(os.path.join(self.media_root_dir, d))])

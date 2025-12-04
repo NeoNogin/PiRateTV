@@ -1,4 +1,5 @@
 import os
+import socket
 
 class MenuManager:
     def __init__(self, media_manager):
@@ -34,10 +35,20 @@ class MenuManager:
         """Returns the title and list of items for the current menu state."""
         if not self.media_manager.shows:
             return "No Media", []
+        
+        # Get IP address
+        try:
+            s = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
+            s.connect(("8.8.8.8", 80))
+            ip_address = s.getsockname()
+            s.close()
+        except Exception:
+            ip_address = "N/A"
 
         if self.level == 0:
             title = "Shows"
             items = [s['name'] for s in self.media_manager.shows]
+            items.append(f"IP: {ip_address}")
             return title, items
             
         elif self.level == 1:

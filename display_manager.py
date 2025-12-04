@@ -11,32 +11,35 @@ class DisplayManager:
         self.width = 240 # Default width
         self.height = 240 # Default height
 
-        try:
-            # ST7789 display setup
-            # Pirate Audio uses SPI0, CE1 (Chip Select 1) for the display.
-            # 'cs' parameter in ST7789 library refers to the SPI Device Index (0 or 1), not the BCM pin.
-            # CS0 = Device 0 (BCM 8), CS1 = Device 1 (BCM 7).
-            self.disp = ST7789.ST7789(
-                port=0,        # SPI bus 0
-                cs=1,          # Chip Select Index 1 (Maps to BCM 7 / CE1 on Pirate Audio)
-                dc=9,          # DC pin (BCM 9)
-                backlight=13,  # Backlight pin (BCM 13)
-                spi_speed_hz=62_500_000,
-                rotation=0     # Rotation (0, 90, 180, 270)
-            )
-            
-            # Initialize display
-            self.disp.begin()
-
-            self.width = self.disp.width
-            self.height = self.disp.height
-
-        except FileNotFoundError as e:
-            print(f"ERROR: SPI device not found. Is SPI enabled in raspi-config? {e}")
-            raise e # Re-raise to trigger service restart
-        except Exception as e:
-            print(f"ERROR: Could not initialize ST7789 display: {e}")
-            raise e # Re-raise to trigger service restart
+        # Retry initialization in case of boot race conditions
+        max_retries = 5
+        retry_delay = 3 # seconds
+        for attempt in range(max_retries):
+            try:
+                # ST7789 display setup
+                self.disp = ST7789.ST7789(
+                    port=0,
+                    cs=1,
+                    dc=9,
+                    backlight=13,
+                    spi_speed_hz=62_500_000,
+                    rotation=0
+                )
+                self.disp.begin()
+                self.width = self.disp.width
+                self.height = self.disp.height
+                print("Display initialized successfully.")
+                break # Success
+            except FileNotFoundError as e:
+                print(f"Attempt {attempt + 1}/{max_retries}: SPI device not found. Is SPI enabled?")
+                if attempt + 1 == max_retries:
+                    raise e
+                time.sleep(retry_delay)
+            except Exception as e:
+                print(f"Attempt {attempt + 1}/{max_retries}: Could not initialize display: {e}")
+                if attempt + 1 == max_retries:
+                    raise e
+                time.sleep(retry_delay)
 
         # Load fonts
         font_dir = os.path.join(os.path.dirname(__file__), 'fonts')
@@ -178,6 +181,13 @@ class DisplayManager:
 
         self.disp.set_backlight(0) # Turn off backlight
         self.screen_on = False
+
+    def reinit_display(self):
+        """Re-initializes the display, e.g., after waking from sleep."""
+        if not self.disp: return
+        print("Re-initializing display...")
+        self.disp.begin()
+        self.turn_on_backlight() # Ensure backlight is on after re-init
 
     def clear_screen(self):
         """Clears the screen to black."""

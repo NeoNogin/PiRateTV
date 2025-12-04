@@ -14,6 +14,7 @@ from display_manager import DisplayManager
 from audio_manager import AudioManager
 from state_manager import StateManager
 from menu_manager import MenuManager
+from web_server import start_web_server_thread
 
 # --- Global Application State & Managers ---
 vlc_instance = vlc.Instance("--aout=alsa", "--quiet", "--no-video-title-show", "--no-xlib")
@@ -301,7 +302,7 @@ def wake_up():
     global is_sleeping
     print("Waking up...")
     is_sleeping = False
-    display_manager.turn_on_backlight()
+    display_manager.reinit_display()
     # Reload state to resume correctly
     state = state_manager.load_state()
     media_manager.set_current_indices(
@@ -482,9 +483,62 @@ def cleanup():
     display_manager.turn_off_backlight()
     print("Application exited.")
 
+# --- Main Application Class ---
+class MainApp:
+    def __init__(self):
+        # Your existing global variables become instance variables
+        self.vlc_instance = vlc_instance
+        self.media_player = media_player
+        self.event_manager = event_manager
+        self.media_manager = media_manager
+        self.display_manager = display_manager
+        self.audio_manager = audio_manager
+        self.state_manager = state_manager
+        self.menu_manager = menu_manager
+        self.is_sleeping = is_sleeping
+        self.is_playing = is_playing
+        self.media_ended_flag = media_ended_flag
+        
+        # Start the web server in a separate thread
+        start_web_server_thread(self)
+
+    def play_pause(self):
+        """Toggles play/pause state of the media player."""
+        if self.media_player.is_playing():
+            self.media_player.pause()
+            print("Playback paused (Web UI)")
+        else:
+            self.media_player.play()
+            print("Playback resumed (Web UI)")
+        update_display()
+    
+    def next_episode(self):
+        """Skips to the next episode."""
+        print("Next episode (Web UI)")
+        handle_next_episode()
+
+    def handle_upload(self, file, filename):
+        """Saves an uploaded file and rescans the media library."""
+        # Note: In a real-world scenario, you'd want to sanitize the filename
+        # and ensure the directory is secure.
+        save_path = os.path.join(config.MEDIA_ROOT_DIR, filename)
+        
+        # Create the directory if it doesn't exist
+        os.makedirs(os.path.dirname(save_path), exist_ok=True)
+        
+        file.save(save_path)
+        print(f"File '{filename}' uploaded successfully to '{save_path}'")
+        
+        # Rescan the media library to include the new file
+        self.media_manager.scan_media()
+        # Optionally, you might want to switch to the new show/episode
+        # or just let the user navigate to it.
+        print("Media library rescanned.")
+
 # --- Main Loop ---
 if __name__ == "__main__":
     try:
+        main_app = MainApp()
         setup()
         # The main loop now just keeps the script alive and periodically updates the display
         while True:

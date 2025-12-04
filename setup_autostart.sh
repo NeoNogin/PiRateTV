@@ -45,21 +45,24 @@ fi
 cat > $SERVICE_NAME <<EOF
 [Unit]
 Description=PITV Media Player
-After=network.target sound.target multi-user.target
+# Wait for more system services to be online before starting
+After=network-online.target sound.target graphical.target
+Wants=network-online.target
 
 [Service]
 Type=simple
 User=$CURRENT_USER
 WorkingDirectory=$APP_DIR
+Environment="HOME=${USER_HOME}"
 Environment=PYTHONUNBUFFERED=1
-# Add a delay to ensure audio/SPI are ready
-ExecStartPre=/bin/sleep 10
+# Add a longer delay to ensure hardware is fully ready
+ExecStartPre=/bin/sleep 15
 ExecStart=$APP_DIR/venv/bin/python3 $APP_DIR/main.py
 Restart=always
-RestartSec=5
+RestartSec=10
 
 [Install]
-WantedBy=multi-user.target
+WantedBy=graphical.target
 EOF
 
 # Install the service
