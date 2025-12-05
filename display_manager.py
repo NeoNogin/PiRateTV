@@ -62,6 +62,7 @@ class DisplayManager:
         self.last_update_time = time.time()
         self.screen_on = True
         self.current_rotation = 0
+        self.overlay_expiry_time = 0
 
     def rotate_screen(self):
         """Cycles screen rotation through 0, 90, 180, 270 degrees."""
@@ -90,7 +91,7 @@ class DisplayManager:
             
         self.disp.display(msg_img)
         self.turn_on_backlight()
-        time.sleep(0.5) # Pause briefly to let user see it
+        self.overlay_expiry_time = time.time() + 3  # Keep message for 3 seconds
 
     def _draw_text_centered(self, draw, y, text, font, fill="white"):
         """Helper to draw text centered horizontally."""
@@ -138,11 +139,17 @@ class DisplayManager:
             output_image = self.image.rotate(self.current_rotation)
 
         self.disp.display(output_image)
+        self.overlay_expiry_time = time.time() + 3  # Keep info for 3 seconds
         self.last_update_time = time.time() # Reset inactivity timer
 
     def display_frame(self, image):
         """Displays a full-screen image (video frame)."""
         if not self.disp: return
+
+        # Don't overwrite status overlays (like volume, title, etc)
+        if time.time() < self.overlay_expiry_time:
+            return
+
         if not self.screen_on: self.turn_on_backlight()
         
         # Determine if we need to resize or if it's already 240x240
