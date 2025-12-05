@@ -516,6 +516,30 @@ class MainApp:
         """Handles the logic for playing the next episode."""
         handle_next_episode()
 
+    def prev_episode(self):
+        """Handles the logic for playing the previous episode."""
+        handle_prev_episode()
+
+    def next_show(self):
+        """Handles the logic for playing the next show."""
+        handle_next_show()
+
+    def rewind(self):
+        """Handles the logic for rewinding."""
+        handle_rewind()
+
+    def fast_forward(self):
+        """Handles the logic for fast forwarding."""
+        handle_fast_forward()
+
+    def toggle_shuffle(self):
+        """Handles the logic for toggling shuffle."""
+        handle_toggle_shuffle()
+
+    def rotate_screen(self):
+        """Handles the logic for rotating the screen."""
+        handle_rotate_screen()
+
     def volume_up(self):
         """Increases the volume."""
         new_volume = self.audio_manager.volume_up()

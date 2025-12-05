@@ -1,6 +1,6 @@
-# PITV - Pirate Audio Media Player
+# PiRateTV - Pirate Audio Media Player
 
-![PITV Device](PXL_20251203_014012991.MP.jpg)
+![PiRateTV Device](PXL_20251203_014012991.MP.jpg)
 
 A custom Python media player application designed for the Raspberry Pi (specifically tested on Pi Zero W) equipped with a Pimoroni Pirate Audio HAT (or compatible ST7789 display and GPIO buttons).
 
@@ -14,6 +14,8 @@ This application allows you to play video files (audio output via DAC), navigate
 - **Physical Controls**: Mapped to Pirate Audio buttons for easy navigation.
 - **Sleep Mode**: Turns off the display backlight to save power while keeping the app running.
 - **Audio Control**: Hardware volume control via ALSA/amixer.
+- **Web Interface**: Control playback, browse files, and upload media from a web browser on your phone or PC.
+- **Folder Uploads**: Upload entire folders with subdirectories and files, preserving the directory structure.
 
 ## Hardware Requirements
 
@@ -144,7 +146,7 @@ To run automatically on startup, consider adding a systemd service or a crontab 
 
 ## Roadmap
 
-Future features and enhancements planned for PITV:
+Future features and enhancements planned for PiRateTV:
 
 ### 1. Visual & UI Enhancements
 - [ ] **Cover Art Support**: Display `poster.jpg` or `folder.jpg` from Show/Season directories.
@@ -155,10 +157,20 @@ Future features and enhancements planned for PITV:
 - [x] **"Shuffle / Channel Surfing" Mode**: Randomly play episodes from any show.
 - [ ] **Resume-Per-Show**: Track playback progress individually for each show.
 - [ ] **Sleep Timer**: Auto-stop and sleep after a set duration.
+- [ ] **Battery Status**: Support for PiSugar or UPS HAT battery monitoring.
+- [ ] **Bluetooth Audio**: Manager for connecting Bluetooth headphones/speakers.
 
 ### 3. Remote Management
-- [ ] **Web Interface**: Control playback via a phone/PC browser.
-- [ ] **File Upload Server**: Upload media files via the web interface.
+- [x] **Web Interface**: Control playback via a phone/PC browser.
+- [x] **File Upload Server**: Upload media files and entire folders via the web interface.
+- [ ] **Advanced Media Management**:
+    - [ ] Delete files and folders.
+    - [ ] Rename and move files and folders.
+    - [ ] Search for media files.
+- [ ] **Playlist Management**: Create, save, and load custom playlists.
+- [ ] **Real-time Playback Sync**: Use WebSockets for instant playback status updates in the UI.
+- [ ] **User Authentication**: Secure the web interface with a login system.
+- [ ] **System Monitoring**: Display system info (CPU, temp, disk space) on the web UI.
 - [ ] **WiFi / IP Status**: Display IP address on the screen for easier connection.
 
 ### 4. Hardware Integrations

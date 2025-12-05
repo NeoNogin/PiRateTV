@@ -29,6 +29,35 @@ def next_episode():
     main_app.next_episode()
     return jsonify({"status": "ok"}), 200
 
+@app.route('/prev', methods=['POST'])
+def prev_episode():
+    main_app.prev_episode()
+    return jsonify({"status": "ok"}), 200
+
+@app.route('/next_show', methods=['POST'])
+def next_show():
+    main_app.next_show()
+    return jsonify({"status": "ok"}), 200
+
+@app.route('/rewind', methods=['POST'])
+def rewind():
+    main_app.rewind()
+    return jsonify({"status": "ok"}), 200
+
+@app.route('/fast_forward', methods=['POST'])
+def fast_forward():
+    main_app.fast_forward()
+    return jsonify({"status": "ok"}), 200
+
+@app.route('/toggle_shuffle', methods=['POST'])
+def toggle_shuffle():
+    main_app.toggle_shuffle()
+    return jsonify({"status": "ok"}), 200
+
+@app.route('/rotate_screen', methods=['POST'])
+def rotate_screen():
+    main_app.rotate_screen()
+    return jsonify({"status": "ok"}), 200
 @app.route('/browse', defaults={'sub_path': ''})
 @app.route('/browse/<path:sub_path>')
 def browse(sub_path):
