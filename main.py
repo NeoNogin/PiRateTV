@@ -15,7 +15,7 @@ from display_manager import DisplayManager
 from audio_manager import AudioManager
 from state_manager import StateManager
 from menu_manager import MenuManager
-from web_server import start_web_server_thread, socketio
+from web_server import start_web_server_thread, stop_web_server, socketio
 
 # --- Ensure Media Directory Exists ---
 os.makedirs(config.MEDIA_ROOT_DIR, exist_ok=True)
@@ -29,7 +29,7 @@ media_manager = MediaManager(config.MEDIA_ROOT_DIR)
 display_manager = DisplayManager()
 audio_manager = AudioManager()
 state_manager = StateManager(config.STATE_FILE_PATH)
-menu_manager = MenuManager(media_manager)
+menu_manager = MenuManager(media_manager, state_manager)
 
 is_sleeping = False
 is_playing = False
@@ -90,7 +90,8 @@ def save_current_state():
         playback_position=playback_pos,
         volume_percent=audio_manager.get_current_volume(),
         is_sleeping=is_sleeping,
-        shuffle_enabled=media_manager.shuffle_enabled
+        shuffle_enabled=media_manager.shuffle_enabled,
+        web_server_enabled=state_manager.get_state().get('web_server_enabled', True)
     )
     print(f"State saved at position: {playback_pos:.2f}s")
 
@@ -160,7 +161,26 @@ def handle_next_episode():
         # Menu Mode: Select / Enter
         print("Menu: Select")
         result = menu_manager.select()
-        if result:
+        
+        if result == "TOGGLE_WEB_SERVER":
+             current_state = state_manager.get_state().get('web_server_enabled', True)
+             new_state = not current_state
+             
+             # Update state
+             state_manager.state['web_server_enabled'] = new_state
+             save_current_state()
+             
+             # Handle Server
+             if new_state:
+                 print("Enabling Web Server...")
+                 start_web_server_thread(main_app)
+             else:
+                 print("Disabling Web Server...")
+                 stop_web_server()
+                 
+             update_display()
+             
+        elif result:
             # Play selection
             show_idx, season_idx, episode_idx = result
             print(f"Menu: Playing selection {show_idx}-{season_idx}-{episode_idx}")
@@ -514,12 +534,16 @@ class MainApp:
         time.sleep(15)
         print("Initialization started.")
         
-        print("Attempting to start web server...")
-        try:
-            start_web_server_thread(self)
-            print("Web server thread started.")
-        except Exception as e:
-            print(f"CRITICAL: Failed to start web server thread: {e}")
+        # Check if web server should be enabled
+        if self.state_manager.get_state().get('web_server_enabled', True):
+            print("Attempting to start web server...")
+            try:
+                start_web_server_thread(self)
+                print("Web server thread started.")
+            except Exception as e:
+                print(f"CRITICAL: Failed to start web server thread: {e}")
+        else:
+            print("Web server is disabled in settings. Skipping startup.")
 
         print("Attempting to initialize hardware...")
         try:

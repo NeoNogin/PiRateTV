@@ -2,8 +2,9 @@ import os
 import socket
 
 class MenuManager:
-    def __init__(self, media_manager):
+    def __init__(self, media_manager, state_manager):
         self.media_manager = media_manager
+        self.state_manager = state_manager
         self.active = False
         self.level = 0 # 0: Shows, 1: Seasons, 2: Episodes
         
@@ -48,7 +49,18 @@ class MenuManager:
         if self.level == 0:
             title = "Shows"
             items = [s['name'] for s in self.media_manager.shows]
-            items.append(f"IP: {ip_address}")
+            
+            # Web Server Status
+            is_enabled = self.state_manager.get_state().get('web_server_enabled', True)
+            if is_enabled:
+                if isinstance(ip_address, tuple):
+                    ip_str = ip_address[0]
+                else:
+                    ip_str = str(ip_address)
+                items.append(f"Web: {ip_str}")
+            else:
+                items.append("Web: OFF")
+            
             return title, items
             
         elif self.level == 1:
@@ -90,6 +102,10 @@ class MenuManager:
         if not items: return None
 
         if self.level == 0:
+            # Check if it's the last item (Web Server Toggle)
+            if self.cursor == len(items) - 1:
+                 return "TOGGLE_WEB_SERVER"
+
             print(f"Selected Show: {items[self.cursor]}")
             self.selected_show_index = self.cursor
             self.cursor_stack.append(self.cursor)

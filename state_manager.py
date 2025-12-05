@@ -13,7 +13,8 @@ class StateManager:
             'playback_position': 0, # in seconds
             'volume_percent': config.VOLUME_PRESETS[-1], # Default to max preset volume
             'is_sleeping': False,
-            'shuffle_enabled': False
+            'shuffle_enabled': False,
+            'web_server_enabled': True
         }
         self.state = self.load_state()
 
@@ -35,7 +36,7 @@ class StateManager:
         return self.default_state
 
     def save_state(self, current_show_idx, current_season_idx, current_episode_idx,
-                   playback_position, volume_percent, is_sleeping, shuffle_enabled):
+                   playback_position, volume_percent, is_sleeping, shuffle_enabled, web_server_enabled):
         """Saves the current player state to the JSON file."""
         self.state = {
             'current_show_idx': current_show_idx,
@@ -44,7 +45,8 @@ class StateManager:
             'playback_position': playback_position,
             'volume_percent': volume_percent,
             'is_sleeping': is_sleeping,
-            'shuffle_enabled': shuffle_enabled
+            'shuffle_enabled': shuffle_enabled,
+            'web_server_enabled': web_server_enabled
         }
         try:
             # Ensure the directory exists

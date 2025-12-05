@@ -1,11 +1,15 @@
 from flask import Flask, jsonify, request, render_template, Response, send_from_directory
 from flask_socketio import SocketIO
+from werkzeug.serving import make_server
 import threading
+import time
 
 # --- Globals ---
 app = Flask(__name__)
 socketio = SocketIO(app)
 main_app = None
+server_thread = None
+server_instance = None
 
 # --- Routes ---
 @app.route('/', methods=['GET'])
@@ -134,20 +138,45 @@ def run_web_server(main_instance):
     """
     Runs the Flask web server in a separate thread.
     """
-    global main_app
+    global main_app, server_instance
     main_app = main_instance
     
-    # Use SocketIO's server which is suitable for production
-    print("Starting SocketIO server.")
-    # allow_unsafe_werkzeug=True is needed when running as a service
-    socketio.run(app, host='0.0.0.0', port=5000, allow_unsafe_werkzeug=True)
+    print("Starting Web Server (Threaded)...")
+    try:
+        # Create a threaded Werkzeug server that we can control
+        server_instance = make_server('0.0.0.0', 5000, app, threaded=True)
+        server_instance.serve_forever()
+    except Exception as e:
+        print(f"Web server stopped with error: {e}")
 
 def start_web_server_thread(main_instance):
     """
     Initializes and starts the web server in a daemon thread.
     """
-    web_thread = threading.Thread(target=run_web_server, args=(main_instance,), name="WebServerThread")
-    web_thread.daemon = True  # Allows main app to exit even if this thread is running
-    web_thread.start()
+    global server_thread
+    if server_thread and server_thread.is_alive():
+        print("Web server is already running.")
+        return server_thread
+
+    server_thread = threading.Thread(target=run_web_server, args=(main_instance,), name="WebServerThread")
+    server_thread.daemon = True  # Allows main app to exit even if this thread is running
+    server_thread.start()
     print("Web server started on http://0.0.0.0:5000")
-    return web_thread
+    return server_thread
+
+def stop_web_server():
+    """
+    Stops the web server by shutting down the Werkzeug server instance.
+    """
+    global server_instance
+    try:
+        if server_instance:
+            print("Stopping web server...")
+            server_instance.shutdown()
+            server_instance = None
+        
+        if server_thread:
+            server_thread.join(timeout=2)
+            print("Web server thread stopped.")
+    except Exception as e:
+        print(f"Error stopping web server: {e}")
