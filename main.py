@@ -7,6 +7,7 @@ import vlc
 import atexit
 import ctypes
 from PIL import Image
+import threading
 
 import config
 from media_manager import MediaManager
@@ -14,7 +15,7 @@ from display_manager import DisplayManager
 from audio_manager import AudioManager
 from state_manager import StateManager
 from menu_manager import MenuManager
-from web_server import start_web_server_thread
+from web_server import start_web_server_thread, socketio
 
 # --- Ensure Media Directory Exists ---
 os.makedirs(config.MEDIA_ROOT_DIR, exist_ok=True)
@@ -114,6 +115,8 @@ def start_playback(episode_path, resume_position_s=0):
         media_player.set_time(int(resume_position_s * 1000))
 
     update_display()
+    # Notify web clients of the new episode
+    socketio.emit('new_episode', main_app.get_playback_status())
 
 def stop_playback():
     """Stops the VLC media player."""
@@ -499,8 +502,31 @@ class MainApp:
         self.media_ended_flag = media_ended_flag
         self.media_ended_flag = media_ended_flag
         
-        # Start the web server in a separate thread
-        start_web_server_thread(self)
+        self.socketio = socketio
+        # Start hardware & server initialization in a separate thread after a delay
+        self.init_thread = threading.Thread(target=self._initialize_systems_with_delay, name="InitThread")
+        self.init_thread.daemon = True
+        self.init_thread.start()
+
+    def _initialize_systems_with_delay(self):
+        """Waits for system to be ready before starting web server and hardware."""
+        print("Delaying initialization for 15 seconds...")
+        time.sleep(15)
+        print("Initialization started.")
+        
+        print("Attempting to start web server...")
+        try:
+            start_web_server_thread(self)
+            print("Web server thread started.")
+        except Exception as e:
+            print(f"CRITICAL: Failed to start web server thread: {e}")
+
+        print("Attempting to initialize hardware...")
+        try:
+            setup()
+            print("Hardware setup complete.")
+        except Exception as e:
+            print(f"CRITICAL: Failed to initialize hardware: {e}")
 
     def play_pause(self):
         """Toggles play/pause state of the media player."""
@@ -603,11 +629,25 @@ class MainApp:
         except Exception as e:
             print(f"Error saving uploaded file: {e}")
 
+    def get_playback_status(self):
+        """Returns a dictionary with the current playback status."""
+        episode_path = self.media_manager.get_current_episode_path()
+        relative_path = ""
+        if episode_path and episode_path.startswith(self.media_manager.media_root_dir):
+            relative_path = os.path.relpath(episode_path, self.media_manager.media_root_dir)
+
+        return {
+            'is_playing': self.media_player.is_playing(),
+            'current_time': self.media_player.get_time() / 1000.0,
+            'duration': self.media_player.get_length() / 1000.0,
+            'episode_path': relative_path.replace("\\", "/"), # Use forward slashes for web
+            'show_info': self.media_manager.get_current_episode_info()
+        }
+
 # --- Main Loop ---
 if __name__ == "__main__":
     try:
         main_app = MainApp()
-        setup()
         # The main loop now just keeps the script alive and periodically updates the display
         while True:
             # Check if media finished playing (signaled by callback)

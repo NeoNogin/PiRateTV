@@ -19,6 +19,7 @@
         .browser-list li.dir { color: #61dafb; font-weight: bold; }
         .browser-list li.file { color: #ccc; }
     </style>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/socket.io/4.0.1/socket.io.js"></script>
 </head>
 <body>
     <div class="container">
@@ -181,9 +182,53 @@
                 statusDiv.textContent = `Upload error: ${error.message}`;
             }
         });
-        
-        // Initial load
+
+        // --- WebSocket Setup ---
+        const socket = io();
+
+        socket.on('connect', () => {
+            console.log('Connected to WebSocket server.');
+            document.getElementById('status-message').textContent = 'Connected';
+        });
+
+        socket.on('disconnect', () => {
+            console.log('Disconnected from WebSocket server.');
+            document.getElementById('status-message').textContent = 'Disconnected';
+        });
+
+        socket.on('new_episode', (status) => {
+            console.log('New episode event received:', status);
+            const videoPlayer = document.getElementById('video-player');
+            const expectedSrc = `${window.location.protocol}//${window.location.host}/media/${status.episode_path}`;
+
+            if (videoPlayer.src !== expectedSrc && status.episode_path) {
+                console.log("Browser out of sync. Updating video to:", status.episode_path);
+                videoPlayer.src = `/media/${status.episode_path}`;
+                videoPlayer.currentTime = status.current_time;
+                if (status.is_playing) {
+                    videoPlayer.play();
+                } else {
+                    videoPlayer.pause();
+                }
+            }
+        });
+
+        // --- Event Listeners ---
+        const videoPlayer = document.getElementById('video-player');
+        videoPlayer.addEventListener('ended', () => {
+            console.log('Browser video ended. Requesting next episode.');
+            sendCommand('/next');
+        });
+
+        // --- Initial Load ---
         browse('');
+        // Request initial status
+        fetch('/status').then(res => res.json()).then(status => {
+            //
+            // We are using the 'new_episode' handler to sync the browser with the device
+            //
+            socket.emit('new_episode', status);
+        });
     </script>
 </body>
 </html>

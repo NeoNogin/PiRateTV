@@ -57,7 +57,7 @@ Environment="HOME=${USER_HOME}"
 Environment=PYTHONUNBUFFERED=1
 # Add a longer delay to ensure hardware is fully ready
 ExecStartPre=/bin/sleep 15
-ExecStart=$APP_DIR/venv/bin/python3 $APP_DIR/main.py
+ExecStart=$APP_DIR/run.sh
 Restart=always
 RestartSec=10
 

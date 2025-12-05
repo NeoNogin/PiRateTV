@@ -1,8 +1,10 @@
 from flask import Flask, jsonify, request, render_template, Response, send_from_directory
+from flask_socketio import SocketIO
 import threading
 
 # --- Globals ---
 app = Flask(__name__)
+socketio = SocketIO(app)
 main_app = None
 
 # --- Routes ---
@@ -13,6 +15,12 @@ def index():
 @app.route('/health', methods=['GET'])
 def health_check():
     return jsonify({"status": "ok"}), 200
+
+@app.route('/status', methods=['GET'])
+def get_status():
+    """Route to get the current playback status."""
+    status_info = main_app.get_playback_status()
+    return jsonify(status_info), 200
 
 @app.route('/play', methods=['POST'])
 def play():
@@ -129,14 +137,10 @@ def run_web_server(main_instance):
     global main_app
     main_app = main_instance
     
-    # Use a production-ready server if available, otherwise fallback to Flask's dev server
-    try:
-        from waitress import serve
-        serve(app, host='0.0.0.0', port=5000)
-    except ImportError:
-        print("Waitress not found, using Flask's development server.")
-        # Note: Flask's dev server is not recommended for production.
-        app.run(host='0.0.0.0', port=5000, debug=False)
+    # Use SocketIO's server which is suitable for production
+    print("Starting SocketIO server.")
+    # allow_unsafe_werkzeug=True is needed when running as a service
+    socketio.run(app, host='0.0.0.0', port=5000, allow_unsafe_werkzeug=True)
 
 def start_web_server_thread(main_instance):
     """
