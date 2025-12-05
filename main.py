@@ -174,7 +174,6 @@ def handle_next_episode():
         print("Button: Next Episode")
         stop_playback()
         media_manager.next_episode()
-        save_current_state()
         start_playback(media_manager.get_current_episode_path())
 
 def handle_prev_episode():
@@ -189,7 +188,6 @@ def handle_prev_episode():
         print("Button: Previous Episode")
         stop_playback()
         media_manager.prev_episode()
-        save_current_state()
         start_playback(media_manager.get_current_episode_path())
 
 def handle_next_show():
@@ -209,7 +207,6 @@ def handle_next_show():
         print("Button: Next Show")
         stop_playback()
         media_manager.next_show()
-        save_current_state()
         start_playback(media_manager.get_current_episode_path())
 
 def handle_fast_forward():
@@ -617,7 +614,7 @@ if __name__ == "__main__":
             if media_ended_flag:
                 print("Main Loop: Handling Media End...")
                 media_ended_flag = False
-                time.sleep(0.5) # Short pause
+                stop_playback() # Stop player before loading next
                 media_manager.next_episode()
                 save_current_state()
                 start_playback(media_manager.get_current_episode_path())
