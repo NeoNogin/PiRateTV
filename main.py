@@ -617,8 +617,16 @@ class MainApp:
         """Plays a specific media file."""
         # This assumes the file_path is a full, safe path to a media file
         stop_playback()
-        # You might need a way to figure out show/season/episode from path
-        # For now, let's just play it directly.
+        
+        # Find and set indices so state is consistent
+        indices = self.media_manager.find_episode_indices(file_path)
+        if indices:
+            show_idx, season_idx, episode_idx = indices
+            print(f"Playing media from browser: {file_path} (Indices: {indices})")
+            self.media_manager.set_current_indices(show_idx, season_idx, episode_idx)
+        else:
+            print(f"Warning: Could not find indices for {file_path}. State may be out of sync.")
+
         start_playback(os.path.join(self.media_manager.media_root_dir, file_path))
 
     def handle_upload(self, file_stream, filename):

@@ -133,6 +133,24 @@ class MediaManager:
         self.current_episode_idx = 0
         print(f"Next show: {self.get_current_episode_info()}")
 
+    def find_episode_indices(self, file_path):
+        """
+        Given a file path (relative to media_root_dir), finds the
+        (show_idx, season_idx, episode_idx) that corresponds to it.
+        Returns None if not found.
+        """
+        abs_path = os.path.abspath(os.path.join(self.media_root_dir, file_path))
+        
+        for show_idx, show in enumerate(self.shows):
+            for season_idx, season in enumerate(show['seasons']):
+                for episode_idx, episode_abs_path in enumerate(season['episodes']):
+                    # 'episode_abs_path' from glob is already absolute or relative depending on glob usage.
+                    # In scan_media, we used os.path.join(self.media_root_dir, ...), so it should be absolute-ish.
+                    # Let's compare abspaths to be safe.
+                    if os.path.abspath(episode_abs_path) == abs_path:
+                        return show_idx, season_idx, episode_idx
+        return None
+
     def set_current_indices(self, show_idx, season_idx, episode_idx):
         """Sets the current playback indices, clamping to valid ranges."""
         if not self.shows: return

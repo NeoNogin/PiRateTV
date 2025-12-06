@@ -176,3 +176,6 @@ Future features and enhancements planned for PiRateTV:
 ### 4. Hardware Integrations
 - [ ] **Battery Status**: Support for PiSugar or UPS HAT battery monitoring.
 - [ ] **Bluetooth Audio**: Manager for connecting Bluetooth headphones/speakers.
+
+Attribution: 
+Case: https://www.printables.com/model/194315-case-for-raspberry-pi-zero-2-w-with-a-pisugar2
