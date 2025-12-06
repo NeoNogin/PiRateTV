@@ -11,6 +11,7 @@ import threading
 
 import config
 from media_manager import MediaManager
+from plex_manager import PlexManager
 from display_manager import DisplayManager
 from audio_manager import AudioManager
 from state_manager import StateManager
@@ -25,11 +26,15 @@ vlc_instance = vlc.Instance("--aout=alsa", "--quiet", "--no-video-title-show", "
 media_player = vlc_instance.media_player_new()
 event_manager = media_player.event_manager()
 
-media_manager = MediaManager(config.MEDIA_ROOT_DIR)
+local_manager = MediaManager(config.MEDIA_ROOT_DIR)
+plex_manager = PlexManager()
 display_manager = DisplayManager()
 audio_manager = AudioManager()
 state_manager = StateManager(config.STATE_FILE_PATH)
-menu_manager = MenuManager(media_manager, state_manager)
+menu_manager = MenuManager(local_manager, plex_manager, state_manager)
+
+# Determine active manager from state or default to local
+active_manager = local_manager
 
 is_sleeping = False
 is_playing = False
@@ -83,28 +88,40 @@ button_br = Button(config.BUTTON_BR, pull_up=True, bounce_time=0.05, hold_time=c
 def save_current_state():
     """Saves the current playback state to a file."""
     playback_pos = media_player.get_time() / 1000.0 if media_player.is_playing() else 0
+    
+    # Determine source string
+    source_type = 'plex' if active_manager == plex_manager else 'local'
+    
     state_manager.save_state(
-        current_show_idx=media_manager.current_show_idx,
-        current_season_idx=media_manager.current_season_idx,
-        current_episode_idx=media_manager.current_episode_idx,
+        current_show_idx=active_manager.current_show_idx,
+        current_season_idx=active_manager.current_season_idx,
+        current_episode_idx=active_manager.current_episode_idx,
         playback_position=playback_pos,
         volume_percent=audio_manager.get_current_volume(),
         is_sleeping=is_sleeping,
-        shuffle_enabled=media_manager.shuffle_enabled,
-        web_server_enabled=state_manager.get_state().get('web_server_enabled', True)
+        shuffle_enabled=active_manager.shuffle_enabled,
+        web_server_enabled=state_manager.get_state().get('web_server_enabled', True),
+        active_source=source_type
     )
-    print(f"State saved at position: {playback_pos:.2f}s")
+    print(f"State saved ({source_type}) at position: {playback_pos:.2f}s")
 
 def start_playback(episode_path, resume_position_s=0):
     """Starts or resumes playback of a given media file."""
     global is_playing
-    if not episode_path or not os.path.exists(episode_path):
+    
+    # Check existence only for local files
+    if not episode_path.startswith('http') and (not episode_path or not os.path.exists(episode_path)):
         print(f"Error: Episode not found at {episode_path}")
-        display_manager.show_playback_info(media_manager.get_current_episode_info(), "Error", "File Not Found", audio_manager.get_current_volume(), False)
+        display_manager.show_playback_info(active_manager.get_current_episode_info(), "Error", "File Not Found", audio_manager.get_current_volume(), False)
         is_playing = False
         return
 
-    print(f"Starting playback: {os.path.basename(episode_path)}")
+    # Handle Plex URLs vs Local Paths
+    if episode_path.startswith('http'):
+        print(f"Starting playback (Network): {episode_path}")
+    else:
+        print(f"Starting playback (Local): {os.path.basename(episode_path)}")
+        
     media = vlc_instance.media_new(episode_path)
     media_player.set_media(media)
     media_player.play()
@@ -140,12 +157,12 @@ def update_display():
         total_duration_s = media_player.get_length() / 1000.0
         
         display_manager.show_playback_info(
-            show_info=media_manager.get_current_episode_info(),
+            show_info=active_manager.get_current_episode_info(),
             current_time_str=format_time(current_pos_s),
             total_time_str=format_time(total_duration_s),
             volume_percent=audio_manager.get_current_volume(),
             is_playing=media_player.is_playing(),
-            is_shuffled=media_manager.shuffle_enabled
+            is_shuffled=active_manager.shuffle_enabled
         )
 
 def format_time(seconds):
@@ -182,12 +199,19 @@ def handle_next_episode():
              
         elif result:
             # Play selection
-            show_idx, season_idx, episode_idx = result
-            print(f"Menu: Playing selection {show_idx}-{season_idx}-{episode_idx}")
-            media_manager.set_current_indices(show_idx, season_idx, episode_idx)
+            # Tuple: (manager_type, show_idx, season_idx, episode_idx)
+            global active_manager
+            manager, show_idx, season_idx, episode_idx = result
+            
+            print(f"Menu: Playing selection via {type(manager).__name__} {show_idx}-{season_idx}-{episode_idx}")
+            
+            # Switch manager
+            active_manager = manager
+            
+            active_manager.set_current_indices(show_idx, season_idx, episode_idx)
             menu_manager.exit_menu()
             stop_playback()
-            start_playback(media_manager.get_current_episode_path())
+            start_playback(active_manager.get_current_episode_path())
             save_current_state()
         else:
             # Just navigating deeper
@@ -196,8 +220,8 @@ def handle_next_episode():
         # Playback Mode: Next Episode
         print("Button: Next Episode")
         stop_playback()
-        media_manager.next_episode()
-        start_playback(media_manager.get_current_episode_path())
+        active_manager.next_episode()
+        start_playback(active_manager.get_current_episode_path())
 
 def handle_prev_episode():
     if is_sleeping: wake_up(); return
@@ -210,8 +234,8 @@ def handle_prev_episode():
         # Playback Mode: Previous Episode
         print("Button: Previous Episode")
         stop_playback()
-        media_manager.prev_episode()
-        start_playback(media_manager.get_current_episode_path())
+        active_manager.prev_episode()
+        start_playback(active_manager.get_current_episode_path())
 
 def handle_next_show():
     if is_sleeping: wake_up(); return
@@ -229,8 +253,8 @@ def handle_next_show():
         # Playback Mode: Next Show
         print("Button: Next Show")
         stop_playback()
-        media_manager.next_show()
-        start_playback(media_manager.get_current_episode_path())
+        active_manager.next_show()
+        start_playback(active_manager.get_current_episode_path())
 
 def handle_fast_forward():
     if is_sleeping: wake_up(); return
@@ -285,8 +309,8 @@ def handle_toggle_shuffle():
         update_display()
     else:
         # Playback Mode: Toggle Shuffle
-        new_state = not media_manager.shuffle_enabled
-        media_manager.set_shuffle_mode(new_state)
+        new_state = not active_manager.shuffle_enabled
+        active_manager.set_shuffle_mode(new_state)
         print(f"Button: Toggle Shuffle -> {new_state}")
         update_display()
 
@@ -323,20 +347,28 @@ def go_to_sleep():
     display_manager.show_sleep_screen()
 
 def wake_up():
-    global is_sleeping
+    global is_sleeping, active_manager
     print("Waking up...")
     is_sleeping = False
     display_manager.reinit_display()
     # Reload state to resume correctly
     state = state_manager.load_state()
-    media_manager.set_current_indices(
+    
+    # Restore active manager
+    active_source = state.get('active_source', 'local')
+    if active_source == 'plex':
+        active_manager = plex_manager
+    else:
+        active_manager = local_manager
+
+    active_manager.set_current_indices(
         state['current_show_idx'],
         state['current_season_idx'],
         state['current_episode_idx']
     )
     audio_manager.set_volume_by_value(state['volume_percent'])
     media_player.audio_set_volume(state['volume_percent'])
-    start_playback(media_manager.get_current_episode_path(), state['playback_position'])
+    start_playback(active_manager.get_current_episode_path(), state['playback_position'])
 
 # --- VLC Event Callback ---
 def handle_media_ended(event):
@@ -467,8 +499,17 @@ def setup():
     media_player.video_set_format("RV24", VIDEO_WIDTH, VIDEO_HEIGHT, VIDEO_WIDTH * 3)
 
     # Load initial state
+    global active_manager
     initial_state = state_manager.get_state()
-    media_manager.set_current_indices(
+    
+    # Restore active manager
+    active_source = initial_state.get('active_source', 'local')
+    if active_source == 'plex':
+        active_manager = plex_manager
+    else:
+        active_manager = local_manager
+
+    active_manager.set_current_indices(
         initial_state['current_show_idx'],
         initial_state['current_season_idx'],
         initial_state['current_episode_idx']
@@ -477,19 +518,19 @@ def setup():
     media_player.audio_set_volume(initial_state['volume_percent'])
     
     if 'shuffle_enabled' in initial_state:
-        media_manager.set_shuffle_mode(initial_state['shuffle_enabled'])
+        active_manager.set_shuffle_mode(initial_state['shuffle_enabled'])
 
     # Start playback based on loaded state
     if initial_state.get('is_sleeping', False):
         go_to_sleep()
     else:
         print("Resuming playback from last state...")
-        episode_path = media_manager.get_current_episode_path()
+        episode_path = active_manager.get_current_episode_path()
         if episode_path:
             start_playback(episode_path, initial_state['playback_position'])
         else:
             print("No media found to play on startup.")
-            display_manager.show_playback_info(media_manager.get_current_episode_info(), "N/A", "N/A", audio_manager.get_current_volume(), False)
+            display_manager.show_playback_info(active_manager.get_current_episode_info(), "N/A", "N/A", audio_manager.get_current_volume(), False)
 
 def cleanup():
     """A cleanup function to be called on application exit."""
@@ -512,14 +553,14 @@ class MainApp:
         self.vlc_instance = vlc_instance
         self.media_player = media_player
         self.event_manager = event_manager
-        self.media_manager = media_manager
+        self.local_manager = local_manager # Expose for Web Server
+        self.plex_manager = plex_manager # Expose for Web Server
         self.display_manager = display_manager
         self.audio_manager = audio_manager
         self.state_manager = state_manager
         self.menu_manager = menu_manager
         self.is_sleeping = is_sleeping
         self.is_playing = is_playing
-        self.media_ended_flag = media_ended_flag
         self.media_ended_flag = media_ended_flag
         
         self.socketio = socketio
@@ -601,7 +642,11 @@ class MainApp:
 
     def get_current_video_path(self):
         """Returns the path and filename of the current video for streaming."""
-        episode_path = self.media_manager.get_current_episode_path()
+        # Only relevant for local files
+        if active_manager != local_manager:
+            return None, None
+            
+        episode_path = local_manager.get_current_episode_path()
         if episode_path and os.path.exists(episode_path):
             directory, filename = os.path.split(episode_path)
             return directory, filename
@@ -609,25 +654,47 @@ class MainApp:
 
     def is_safe_path(self, path_to_check):
         """Checks if a given path is safely within the media root directory."""
-        base_path = os.path.abspath(self.media_manager.media_root_dir)
+        if path_to_check.startswith("Plex Media/") or path_to_check.startswith("Local Media/"):
+            return True
+
+        base_path = os.path.abspath(local_manager.media_root_dir)
         check_path = os.path.abspath(os.path.join(base_path, path_to_check))
         return os.path.commonpath([base_path]) == os.path.commonpath([base_path, check_path])
 
     def play_media(self, file_path):
         """Plays a specific media file."""
-        # This assumes the file_path is a full, safe path to a media file
+        global active_manager
+        
+        # Determine source based on path prefix
+        if file_path.startswith("Plex Media/"):
+            target_manager = self.plex_manager
+            # Strip "Plex Media/"
+            rel_path = file_path[len("Plex Media/"):]
+        elif file_path.startswith("Local Media/"):
+            target_manager = self.local_manager
+            rel_path = file_path[len("Local Media/"):]
+        else:
+            # Fallback for backward compatibility or direct paths (assumed local)
+            target_manager = self.local_manager
+            rel_path = file_path
+
+        active_manager = target_manager
         stop_playback()
         
-        # Find and set indices so state is consistent
-        indices = self.media_manager.find_episode_indices(file_path)
+        # Find and set indices
+        indices = target_manager.find_episode_indices(rel_path)
         if indices:
             show_idx, season_idx, episode_idx = indices
             print(f"Playing media from browser: {file_path} (Indices: {indices})")
-            self.media_manager.set_current_indices(show_idx, season_idx, episode_idx)
+            target_manager.set_current_indices(show_idx, season_idx, episode_idx)
+            
+            # Start playback
+            if target_manager == self.plex_manager:
+                start_playback(target_manager.get_current_episode_path())
+            else:
+                start_playback(os.path.join(target_manager.media_root_dir, rel_path))
         else:
-            print(f"Warning: Could not find indices for {file_path}. State may be out of sync.")
-
-        start_playback(os.path.join(self.media_manager.media_root_dir, file_path))
+            print(f"Warning: Could not find indices for {file_path}.")
 
     def handle_upload(self, file_stream, filename):
         """Handles file uploads from the web interface, preserving directory structure."""
@@ -644,7 +711,7 @@ class MainApp:
             print(f"Error: Unsafe path detected during upload: {safe_relative_path}")
             return
 
-        save_path = os.path.join(self.media_manager.media_root_dir, safe_relative_path)
+        save_path = os.path.join(local_manager.media_root_dir, safe_relative_path)
 
         try:
             # Create parent directories if they don't exist
@@ -657,23 +724,29 @@ class MainApp:
             print(f"File uploaded successfully to {save_path}")
             
             # After upload, rescan the media library
-            self.media_manager.scan_media()
+            local_manager.scan_media()
         except Exception as e:
             print(f"Error saving uploaded file: {e}")
 
     def get_playback_status(self):
         """Returns a dictionary with the current playback status."""
-        episode_path = self.media_manager.get_current_episode_path()
+        episode_path = active_manager.get_current_episode_path()
         relative_path = ""
-        if episode_path and episode_path.startswith(self.media_manager.media_root_dir):
-            relative_path = os.path.relpath(episode_path, self.media_manager.media_root_dir)
+        
+        # Only local manager has a root dir
+        if active_manager == local_manager:
+            if episode_path and episode_path.startswith(local_manager.media_root_dir):
+                relative_path = os.path.relpath(episode_path, local_manager.media_root_dir)
+        else:
+            # For Plex, maybe return the URL or just "Plex Stream"
+            relative_path = "Plex Stream"
 
         return {
             'is_playing': self.media_player.is_playing(),
             'current_time': self.media_player.get_time() / 1000.0,
             'duration': self.media_player.get_length() / 1000.0,
             'episode_path': relative_path.replace("\\", "/"), # Use forward slashes for web
-            'show_info': self.media_manager.get_current_episode_info()
+            'show_info': active_manager.get_current_episode_info()
         }
 
 # --- Main Loop ---
@@ -687,9 +760,9 @@ if __name__ == "__main__":
                 print("Main Loop: Handling Media End...")
                 media_ended_flag = False
                 stop_playback() # Stop player before loading next
-                media_manager.next_episode()
+                active_manager.next_episode()
                 save_current_state()
-                start_playback(media_manager.get_current_episode_path())
+                start_playback(active_manager.get_current_episode_path())
 
             time.sleep(0.1) # Update interval
     except KeyboardInterrupt:

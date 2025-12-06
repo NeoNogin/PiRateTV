@@ -22,6 +22,12 @@ share/python-wheels/
 *.egg
 MANIFEST
 Pirate Audio README
+To Do List.md
+
+# Application Data
+media/
+state.json
+*.log
 
 # Virtual Environments
 venv/

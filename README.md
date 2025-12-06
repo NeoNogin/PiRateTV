@@ -100,7 +100,24 @@ The buttons are mapped as follows (based on standard Pirate Audio layout):
 
 ## Configuration
 
-You can customize settings in `config.py`:
+### Environment Variables (Plex Setup)
+
+The application uses a `.env` file to store sensitive configuration like your Plex credentials.
+
+1.  Copy the template file:
+    ```bash
+    cp .env.template .env
+    ```
+2.  Edit `.env` with your settings:
+    ```bash
+    nano .env
+    ```
+    *   `PLEX_BASEURL`: Your Plex Server URL (e.g., `http://192.168.1.50:32400`)
+    *   `PLEX_TOKEN`: Your Plex Authentication Token.
+
+### Advanced Settings
+
+You can customize advanced settings in `config.py`:
 
 - **GPIO Pins**: Adjust `BUTTON_TL`, `BUTTON_TR`, etc., if using custom wiring.
 - **Volume Presets**: Modify `VOLUME_PRESETS` list.

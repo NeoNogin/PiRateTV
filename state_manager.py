@@ -36,7 +36,7 @@ class StateManager:
         return self.default_state
 
     def save_state(self, current_show_idx, current_season_idx, current_episode_idx,
-                   playback_position, volume_percent, is_sleeping, shuffle_enabled, web_server_enabled):
+                   playback_position, volume_percent, is_sleeping, shuffle_enabled, web_server_enabled, active_source='local'):
         """Saves the current player state to the JSON file."""
         self.state = {
             'current_show_idx': current_show_idx,
@@ -46,7 +46,8 @@ class StateManager:
             'volume_percent': volume_percent,
             'is_sleeping': is_sleeping,
             'shuffle_enabled': shuffle_enabled,
-            'web_server_enabled': web_server_enabled
+            'web_server_enabled': web_server_enabled,
+            'active_source': active_source
         }
         try:
             # Ensure the directory exists

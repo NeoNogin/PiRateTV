@@ -7,3 +7,5 @@ Pillow
 rpi-lgpio
 spidev
 Flask-SocketIO
+plexapi
+python-dotenv

@@ -1,5 +1,9 @@
 # config.py
 import os
+from dotenv import load_dotenv
+
+# Load environment variables from .env file
+load_dotenv()
 
 # GPIO Pin Definitions for Pirate Audio Buttons (BCM numbering)
 # As per Pirate Audio README: A=5, B=6, X=16, Y=24
@@ -24,3 +28,7 @@ LONG_PRESS_THRESHOLD = 2.0
 # Screen Inactivity Timers (seconds)
 SCREEN_DIM_TIMEOUT = 30  # Time before backlight might dim (not directly supported by ST7789, acts as off)
 SCREEN_OFF_TIMEOUT = 60  # Time before screen backlight turns completely off
+
+# Plex Configuration
+PLEX_BASEURL = os.getenv('PLEX_BASEURL')
+PLEX_TOKEN = os.getenv('PLEX_TOKEN')

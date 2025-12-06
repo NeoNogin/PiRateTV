@@ -74,8 +74,29 @@ def rotate_screen():
 @app.route('/browse/<path:sub_path>')
 def browse(sub_path):
     """Route to browse the media directory."""
-    contents, status_code = main_app.media_manager.list_directory(sub_path)
-    return jsonify(contents), status_code
+    
+    # Root Level: Select Source
+    if not sub_path:
+        return jsonify({
+            'dirs': ['Local Media', 'Plex Media'],
+            'files': []
+        }), 200
+
+    # Local Media Browsing
+    if sub_path == 'Local Media' or sub_path.startswith('Local Media/'):
+        # Strip 'Local Media' prefix
+        real_path = sub_path[len('Local Media'):].lstrip('/')
+        contents, status_code = main_app.local_manager.list_directory(real_path)
+        return jsonify(contents), status_code
+
+    # Plex Media Browsing
+    if sub_path == 'Plex Media' or sub_path.startswith('Plex Media/'):
+        # Strip 'Plex Media' prefix
+        real_path = sub_path[len('Plex Media'):].lstrip('/')
+        contents, status_code = main_app.plex_manager.list_directory(real_path)
+        return jsonify(contents), status_code
+
+    return jsonify({"error": "Path not found"}), 404
 
 @app.route('/play_media', methods=['POST'])
 def play_media():
@@ -130,7 +151,7 @@ def current_video():
 def serve_media(filename):
     """Route to serve media files for the browser player."""
     if main_app.is_safe_path(filename):
-        return send_from_directory(main_app.media_manager.media_root_dir, filename)
+        return send_from_directory(main_app.local_manager.media_root_dir, filename)
     return "Not Found", 404
 
 # --- Web Server Control ---
